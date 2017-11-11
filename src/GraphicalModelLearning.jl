@@ -46,14 +46,19 @@ learn{T <: Real}(samples::Array{T,2}) = learn(samples, RISE(), NLP())
 learn{T <: Real, S <: GMLFormulation}(samples::Array{T,2}, formulation::S) = learn(samples, formulation, NLP())
 
 
-function learn{T <: Real}(samples::Array{T,2}, formulation::RISE, method::NLP)
+function data_info{T <: Real}(samples::Array{T,2})
     (num_conf, num_row) = size(samples)
     num_spins           = num_row - 1
+    num_samples = sum(samples[1:num_conf,1])
+    return num_conf, num_spins, num_samples
+end
+
+function learn{T <: Real}(samples::Array{T,2}, formulation::RISE, method::NLP)
+    num_conf, num_spins, num_samples = data_info(samples)
+
+    lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
 
     reconstruction = Array{Float64}(num_spins, num_spins)
-
-    num_samples = sum(samples[1:num_conf,1])
-    lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
 
     for current_spin = 1:num_spins
         nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
@@ -87,13 +92,11 @@ end
 
 
 function learn{T <: Real}(samples::Array{T,2}, formulation::logRISE, method::NLP)
-    (num_conf, num_row) = size(samples)
-    num_spins           = num_row - 1
+    num_conf, num_spins, num_samples = data_info(samples)
+
+    lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
 
     reconstruction = Array{Float64}(num_spins, num_spins)
-
-    num_samples = sum(samples[1:num_conf,1])
-    lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
 
     for current_spin = 1:num_spins
         nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
@@ -127,13 +130,11 @@ end
 
 
 function learn{T <: Real}(samples::Array{T,2}, formulation::RPLE, method::NLP)
-    (num_conf, num_row) = size(samples)
-    num_spins           = num_row - 1
+    num_conf, num_spins, num_samples = data_info(samples)
+
+    lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
 
     reconstruction = Array{Float64}(num_spins, num_spins)
-
-    num_samples = sum(samples[1:num_conf,1])
-    lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
 
     for current_spin = 1:num_spins
         nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
