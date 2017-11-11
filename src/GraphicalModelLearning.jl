@@ -9,7 +9,7 @@ using Ipopt
 
 # formulations: :RISE, :logRISE, :RPLE
 
-function inverse_ising(samples_histo, method::Symbol=:logRISE, regularizing_value::Float64=0.8, symmetrization::Symbol=:Yes)
+function inverse_ising(samples_histo; method::Symbol=:logRISE, regularizing_value::Float64=0.8, symmetrization::Symbol=:Yes)
 
     (num_conf, num_row) = size(samples_histo)
     num_spins           = num_row - 1
@@ -30,7 +30,7 @@ function inverse_ising(samples_histo, method::Symbol=:logRISE, regularizing_valu
     #Loop for the reconstruction of couplings around "current_spin"
     for current_spin = 1:num_spins
         #Printing out progress
-        println("Reconstructing the parameters adjacent to node ", current_spin);
+        #println("Reconstructing the parameters adjacent to node ", current_spin);
 
         #Construction of the statistics around node "current_spin" in the histogram format.
         #An element (k,i) reads "configuration[k,current_spin] * configuration[k,i]" if i != current_spin and "configuration[k,current_spin]" otherwise.
@@ -42,7 +42,7 @@ function inverse_ising(samples_histo, method::Symbol=:logRISE, regularizing_valu
         m = Model(solver = IpoptSolver(tol=1e-12, print_level=0))
 
         #Initialization of the loss function for JuMP. RISE is choosen by default unless the user specifies RPLE in the arguments.
-        JuMP.register(m, :IIPobjective, 1, (method == :RPLE ? RPLEobjective : :RISEobjective), autodiff=true)
+        JuMP.register(m, :IIPobjective, 1, (method == :RPLE ? RPLEobjective : RISEobjective), autodiff=true)
 
         #Declaration in JuMP of "x", the array of variables for couplings and magnetic fields and "z", the array of slack variables for the l1 norm.
         #The magnetic field variable is x[current_spin] and the coupling variables are x[i] for i!= current_spin. The slack variable z[current_spin] is uneccessary.
@@ -70,7 +70,7 @@ function inverse_ising(samples_histo, method::Symbol=:logRISE, regularizing_valu
 
         #Lauching convex optimization, printing results and updating the matrix of reconstructed parameters accordingly.
         status = solve(m)
-        println(current_spin, " = ", getvalue(x))
+        #println(current_spin, " = ", getvalue(x))
         reconstruction[current_spin,1:num_spins] = deepcopy(getvalue(x))
 
     end
@@ -114,7 +114,6 @@ function sample_generation(sample_number, adj, prior)
 end
 
 function gibbs_sampler(adjacency_matrix, number_sample::Int64)
-    adjacency_matrix  = readcsv(file_adj) #couplings part
     prior_vector = transpose(diag(adjacency_matrix)) #priors, or magnetic fields part
 
     #Generation of samples
