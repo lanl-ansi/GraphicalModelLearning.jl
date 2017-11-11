@@ -53,7 +53,7 @@ srand(0) # fix random number generator
             for (gm_name, gm) in gms
                 sample_histo = gibbs_sampler(gm, act.samples)
                 learned_gm = inverse_ising(sample_histo, method=act.formulation)
-                max_error = maximum(abs(gm - learned_gm))
+                max_error = maximum(abs.(gm - learned_gm))
                 @test max_error <= act.threshold
             end
         end
