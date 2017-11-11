@@ -2,14 +2,174 @@ isdefined(Base, :__precompile__) && __precompile__()
 
 module GraphicalModelLearning
 
-export inverse_ising, gibbs_sampler
+export learn, inverse_ising, gibbs_sampler
+
+export GMLFormulation, RISE, logRISE, RPLE
+export GMLMethod, NLP
 
 using JuMP
 using Ipopt
 
+using Compat # used for julia v0.5 abstract types
+
+@compat abstract type GMLFormulation end
+
+type RISE <: GMLFormulation
+    regularizer::Float64
+    symmetrization::Bool
+end
+RISE() = RISE(0.8, true) # default values
+
+type logRISE <: GMLFormulation
+    regularizer::Float64
+    symmetrization::Bool
+end
+logRISE() = logRISE(0.8, true) # default values
+
+type RPLE <: GMLFormulation
+    regularizer::Float64
+    symmetrization::Bool
+end
+RPLE() = RPLE(0.8, true) # default values
+
+
+@compat abstract type GMLMethod end
+
+type NLP <: GMLMethod
+    solver
+end
+NLP() = NLP(IpoptSolver(tol=1e-12, print_level=0))
+
+
+# default settings
+learn{T <: Real}(samples::Array{T,2}) = learn(samples, RISE(), NLP())
+learn{T <: Real, S <: GMLFormulation}(samples::Array{T,2}, formulation::S) = learn(samples, formulation, NLP())
+
+
+function learn{T <: Real}(samples::Array{T,2}, formulation::RISE, method::NLP)
+    (num_conf, num_row) = size(samples)
+    num_spins           = num_row - 1
+
+    reconstruction = Array{Float64}(num_spins, num_spins)
+
+    num_samples = sum(samples[1:num_conf,1])
+    lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
+
+    for current_spin = 1:num_spins
+        nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
+
+        m = Model(solver = method.solver)
+
+        @variable(m, x[1:num_spins])
+        @variable(m, z[1:num_spins])
+
+        @NLobjective(m, Min,
+            sum((samples[k,1]/num_samples)*exp(-sum(x[i]*nodal_stat[k,i] for i=1:num_spins)) for k=1:num_conf) +
+            lambda*sum(z[j] for j=1:num_spins if current_spin!=j)
+        )
+
+        for j in 1:num_spins
+            @constraint(m, z[j] >=  x[j]) #z_plus
+            @constraint(m, z[j] >= -x[j]) #z_minus
+        end
+
+        status = solve(m)
+        @assert status == :Optimal
+        reconstruction[current_spin,1:num_spins] = deepcopy(getvalue(x))
+    end
+
+    if formulation.symmetrization
+        reconstruction = 0.5*(reconstruction + transpose(reconstruction))
+    end
+
+    return reconstruction 
+end
+
+
+function learn{T <: Real}(samples::Array{T,2}, formulation::logRISE, method::NLP)
+    (num_conf, num_row) = size(samples)
+    num_spins           = num_row - 1
+
+    reconstruction = Array{Float64}(num_spins, num_spins)
+
+    num_samples = sum(samples[1:num_conf,1])
+    lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
+
+    for current_spin = 1:num_spins
+        nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
+
+        m = Model(solver = method.solver)
+
+        @variable(m, x[1:num_spins])
+        @variable(m, z[1:num_spins])
+
+        @NLobjective(m, Min,
+            log(sum((samples[k,1]/num_samples)*exp(-sum(x[i]*nodal_stat[k,i] for i=1:num_spins)) for k=1:num_conf)) +
+            lambda*sum(z[j] for j=1:num_spins if current_spin!=j)
+        )
+
+        for j in 1:num_spins
+            @constraint(m, z[j] >=  x[j]) #z_plus
+            @constraint(m, z[j] >= -x[j]) #z_minus
+        end
+
+        status = solve(m)
+        @assert status == :Optimal
+        reconstruction[current_spin,1:num_spins] = deepcopy(getvalue(x))
+    end
+
+    if formulation.symmetrization
+        reconstruction = 0.5*(reconstruction + transpose(reconstruction))
+    end
+
+    return reconstruction 
+end
+
+
+function learn{T <: Real}(samples::Array{T,2}, formulation::RPLE, method::NLP)
+    (num_conf, num_row) = size(samples)
+    num_spins           = num_row - 1
+
+    reconstruction = Array{Float64}(num_spins, num_spins)
+
+    num_samples = sum(samples[1:num_conf,1])
+    lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
+
+    for current_spin = 1:num_spins
+        nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
+
+        m = Model(solver = method.solver)
+
+        @variable(m, x[1:num_spins])
+        @variable(m, z[1:num_spins])
+
+        @NLobjective(m, Min,
+            sum((samples[k,1]/num_samples)*log(1 + exp(-2*sum(x[i]*nodal_stat[k,i] for i=1:num_spins))) for k=1:num_conf) +
+            lambda*sum(z[j] for j=1:num_spins if current_spin!=j)
+        )
+
+        for j in 1:num_spins
+            @constraint(m, z[j] >=  x[j]) #z_plus
+            @constraint(m, z[j] >= -x[j]) #z_minus
+        end
+
+        status = solve(m)
+        @assert status == :Optimal
+        reconstruction[current_spin,1:num_spins] = deepcopy(getvalue(x))
+    end
+
+    if formulation.symmetrization
+        reconstruction = 0.5*(reconstruction + transpose(reconstruction))
+    end
+
+    return reconstruction 
+end
+
+
+
 # formulations: :RISE, :logRISE, :RPLE
 
-function inverse_ising(samples_histo; method::Symbol=:logRISE, regularizing_value::Float64=0.8, symmetrization::Symbol=:Yes)
+function inverse_ising_archive(samples_histo; method::Symbol=:logRISE, regularizing_value::Float64=0.8, symmetrization::Symbol=:Yes)
     (num_conf, num_row) = size(samples_histo)
     num_spins           = num_row - 1
 
@@ -76,7 +236,7 @@ function inverse_ising(samples_histo; method::Symbol=:logRISE, regularizing_valu
         reconstruction = 0.5*(reconstruction + transpose(reconstruction))
     end
 
-    return(reconstruction)
+    return reconstruction 
 end
 
 

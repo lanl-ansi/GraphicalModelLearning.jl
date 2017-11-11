@@ -5,7 +5,12 @@
 gibbs_test_samples = 1000000
 
 # formulation_test_name = "$(name)_$(formulation)_learned.csv"
-formulations = [:RISE, :logRISE, :RPLE]
+#formulations = [:RISE, :logRISE, :RPLE]
+formulations = Dict(
+    "RISE" => RISE(), 
+    "logRISE" => logRISE(), 
+    "RPLE" => RPLE()
+)
 
 gms = Dict(
     "a" => [
