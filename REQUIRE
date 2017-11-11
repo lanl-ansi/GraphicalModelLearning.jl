@@ -3,3 +3,5 @@ julia 0.5
 JuMP
 Ipopt
 StatsBase
+
+Compat 0.17
