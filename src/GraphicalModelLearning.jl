@@ -10,17 +10,13 @@ using Ipopt
 # formulations: :RISE, :logRISE, :RPLE
 
 function inverse_ising(samples_histo; method::Symbol=:logRISE, regularizing_value::Float64=0.8, symmetrization::Symbol=:Yes)
-
     (num_conf, num_row) = size(samples_histo)
     num_spins           = num_row - 1
 
     reconstruction = Array{Float64}(num_spins, num_spins)
 
     #Extraction of the total number of samples contained in the histogram.
-    num_samples = 0
-    for k=1:num_conf
-      num_samples += samples_histo[k,1]
-    end
+    num_samples = sum(samples_histo[1:num_conf,1])
 
     #Initialization of the regularizing parameter from regularization coefficient. Declaration of the RPLE and RISE objective funcions.
     lambda           = regularizing_value*sqrt(log((num_spins^2)/0.05)/num_samples)
@@ -117,9 +113,9 @@ function gibbs_sampler(adjacency_matrix, number_sample::Int64)
     prior_vector = transpose(diag(adjacency_matrix)) #priors, or magnetic fields part
 
     #Generation of samples
-    my_sample = sample_generation(number_sample, adjacency_matrix, prior_vector)
+    samples = sample_generation(number_sample, adjacency_matrix, prior_vector)
 
-    return my_sample
+    return samples
 end
 
 end
