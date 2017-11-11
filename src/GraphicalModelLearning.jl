@@ -9,7 +9,8 @@ using Ipopt
 
 # formulations: :RISE, :logRISE, :RPLE
 
-fuction inverse_ising(samples_histo; method=:logRISE, regularizing_value=0.8, symmetrization=:Yes)
+function inverse_ising(samples_histo, method::Symbol=:logRISE, regularizing_value::Float64=0.8, symmetrization::Symbol=:Yes)
+
     (num_conf, num_row) = size(samples_histo)
     num_spins           = num_row - 1
 
@@ -112,7 +113,7 @@ function sample_generation(sample_number, adj, prior)
   return spin_sample
 end
 
-fuction gibbs_sampler(adjacency_matrix, number_sample::Int64)
+function gibbs_sampler(adjacency_matrix, number_sample::Int64)
     adjacency_matrix  = readcsv(file_adj) #couplings part
     prior_vector = transpose(diag(adjacency_matrix)) #priors, or magnetic fields part
 
