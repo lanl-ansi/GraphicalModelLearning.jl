@@ -10,7 +10,7 @@ include("common.jl")
         srand(0) # fix random number generator
         samples = gibbs_sampler(gm, gibbs_test_samples)
         base_samples = readcsv("data/$(name)_samples.csv")
-        @test samples == base_samples
+        @test isapprox(samples, base_samples)
     end
 end
 
@@ -23,7 +23,7 @@ end
                 srand(0) # fix random number generator
                 learned_gm = inverse_ising(samples, method=formulation)
                 base_learned_gm = readcsv("data/$(name)_$(formulation)_learned.csv")
-                @test learned_gm == base_learned_gm
+                @test isapprox(learned_gm, base_learned_gm)
             end
         end
     end
