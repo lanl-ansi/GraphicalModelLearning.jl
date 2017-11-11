@@ -8,6 +8,7 @@ export GMLFormulation, RISE, logRISE, RPLE
 export GMLMethod, NLP
 
 using JuMP
+using MathProgBase # for solver type
 using Ipopt
 
 using Compat # used for julia v0.5 abstract types
@@ -15,29 +16,33 @@ using Compat # used for julia v0.5 abstract types
 @compat abstract type GMLFormulation end
 
 type RISE <: GMLFormulation
-    regularizer::Float64
+    regularizer::Real
     symmetrization::Bool
 end
-RISE() = RISE(0.8, true) # default values
+# default values
+RISE() = RISE(0.8, true)
 
 type logRISE <: GMLFormulation
-    regularizer::Float64
+    regularizer::Real
     symmetrization::Bool
 end
-logRISE() = logRISE(0.8, true) # default values
+# default values
+logRISE() = logRISE(0.8, true)
 
 type RPLE <: GMLFormulation
-    regularizer::Float64
+    regularizer::Real
     symmetrization::Bool
 end
-RPLE() = RPLE(0.8, true) # default values
+# default values
+RPLE() = RPLE(0.8, true)
 
 
 @compat abstract type GMLMethod end
 
 type NLP <: GMLMethod
-    solver
+    solver::MathProgBase.AbstractMathProgSolver
 end
+# default values
 NLP() = NLP(IpoptSolver(tol=1e-12, print_level=0))
 
 
@@ -48,10 +53,11 @@ learn{T <: Real, S <: GMLFormulation}(samples::Array{T,2}, formulation::S) = lea
 
 function data_info{T <: Real}(samples::Array{T,2})
     (num_conf, num_row) = size(samples)
-    num_spins           = num_row - 1
+    num_spins = num_row - 1
     num_samples = sum(samples[1:num_conf,1])
     return num_conf, num_spins, num_samples
 end
+
 
 function learn{T <: Real}(samples::Array{T,2}, formulation::RISE, method::NLP)
     num_conf, num_spins, num_samples = data_info(samples)
