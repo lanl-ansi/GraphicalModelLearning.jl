@@ -2,7 +2,7 @@
 # if any of these data are modified make sure to run data/build_data.jl
 
 # gibbs_test_name = "$(name)_samples.csv"
-gibbs_test_samples = 1000
+gibbs_test_samples = 1000000
 
 # formulation_test_name = "$(name)_$(formulation)_learned.csv"
 formulations = [:RISE, :logRISE, :RPLE]
