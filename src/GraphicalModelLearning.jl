@@ -2,7 +2,7 @@ isdefined(Base, :__precompile__) && __precompile__()
 
 module GraphicalModelLearning
 
-export learn, inverse_ising, gibbs_sampler
+export learn, inverse_ising
 
 export GMLFormulation, RISE, logRISE, RPLE
 export GMLMethod, NLP
@@ -248,7 +248,15 @@ end
 
 
 
+export sample
+
+export GMSampler, Gibbs
+
 using StatsBase
+
+@compat abstract type GMSampler end
+
+type Gibbs <: GMSampler end
 
 function int_to_spin(int_representation, spin_number)
   spin = 2*digits(int_representation, 2, spin_number)-1
@@ -268,7 +276,7 @@ function sample_generation(sample_number, adj, prior)
   items   = [i for i in 0:(config_number-1)]
   weights = [weigh_proba(i, adj, prior) for i in (0:config_number-1)]
 
-  raw_sample = sample(items, StatsBase.Weights(weights), sample_number)
+  raw_sample = StatsBase.sample(items, StatsBase.Weights(weights), sample_number)
   raw_binning= countmap(raw_sample)
 
   spin_sample = [ vcat(raw_binning[i], int_to_spin(i, spin_number)) for i in keys(raw_binning)]
@@ -276,7 +284,8 @@ function sample_generation(sample_number, adj, prior)
   return spin_sample
 end
 
-function gibbs_sampler(adjacency_matrix, number_sample::Int64)
+sample(adjacency_matrix, number_sample::Int64) = sample(adjacency_matrix, number_sample::Int64, Gibbs())
+function sample(adjacency_matrix, number_sample::Int64, sampler::Gibbs)
     prior_vector = transpose(diag(adjacency_matrix)) #priors, or magnetic fields part
 
     #Generation of samples

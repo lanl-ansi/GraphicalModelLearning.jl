@@ -8,7 +8,7 @@ include("common.jl")
 @testset "gibbs sampler" begin
     for (name, gm) in gms
         srand(0) # fix random number generator
-        samples = gibbs_sampler(gm, gibbs_test_samples)
+        samples = sample(gm, gibbs_test_samples)
         base_samples = readcsv("data/$(name)_samples.csv")
         @test isapprox(samples, base_samples)
     end
@@ -24,7 +24,7 @@ end
                 #learned_gm = inverse_ising(samples, method=formulation)
                 learned_gm = learn(samples, formulation)
                 base_learned_gm = readcsv("data/$(name)_$(form_name)_learned.csv")
-                println(abs.(learned_gm - base_learned_gm))
+                println(maximum(abs.(learned_gm - base_learned_gm)))
                 @test isapprox(learned_gm, base_learned_gm)
             end
         end
@@ -52,7 +52,7 @@ srand(0) # fix random number generator
     for act in accuracy_tests
         @testset "  $(act.formulation) $(act.samples) $(act.threshold)" begin
             for (gm_name, gm) in gms
-                sample_histo = gibbs_sampler(gm, act.samples)
+                sample_histo = sample(gm, act.samples)
                 #learned_gm = inverse_ising(sample_histo, method=act.formulation)
                 learned_gm = learn(sample_histo, act.formulation)
                 max_error = maximum(abs.(gm - learned_gm))
