@@ -16,7 +16,7 @@ end
 
 
 @testset "inverse ising formulations" begin
-    #=
+
     for (form_name, formulation) in formulations
         @testset "  $(form_name)" begin
             for (name, gm) in gms
@@ -25,12 +25,11 @@ end
                 #learned_gm = inverse_ising(samples, method=formulation)
                 learned_gm = learn(samples, formulation)
                 base_learned_gm = readcsv("data/$(name)_$(form_name)_learned.csv")
-                println(maximum(abs.(learned_gm - base_learned_gm)))
+                #println(maximum(abs.(learned_gm - base_learned_gm)))
                 @test isapprox(learned_gm, base_learned_gm)
             end
         end
     end
-    =#
 
 
     samples = readcsv("data/mvt_samples.csv")
@@ -38,19 +37,19 @@ end
     rand(0) # fix random number generator
     learned_gm_rise = learn(samples, RISE(0.2, false), NLP(IpoptSolver(print_level=0)))
     base_learned_gm = readcsv("data/mvt_RISE_learned.csv")
-    println(abs.(learned_gm_rise - base_learned_gm))
+    #println(abs.(learned_gm_rise - base_learned_gm))
     @test isapprox(learned_gm_rise, base_learned_gm)
 
     srand(0) # fix random number generator
     learned_gm_logrise = learn(samples, logRISE(0.2, false), NLP(IpoptSolver(print_level=0)))
     base_learned_gm = readcsv("data/mvt_logRISE_learned.csv")
-    println(abs.(learned_gm_logrise - base_learned_gm))
+    #println(abs.(learned_gm_logrise - base_learned_gm))
     @test isapprox(learned_gm_logrise, base_learned_gm)
 
     srand(0) # fix random number generator
     learned_gm_rple = learn(samples, RPLE(0.2, false), NLP(IpoptSolver(print_level=0)))
     base_learned_gm = readcsv("data/mvt_RPLE_learned.csv")
-    println(abs.(learned_gm_rple - base_learned_gm))
+    #println(abs.(learned_gm_rple - base_learned_gm))
     @test isapprox(learned_gm_rple, base_learned_gm)
 end
 

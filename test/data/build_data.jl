@@ -9,17 +9,17 @@ using GraphicalModelLearning
 
 include("../common.jl")
 
-for (name, model) in gms
+for (gm_name, model) in gms
     srand(0) # fix random number generator
-    samples = gibbs_sampler(model, gibbs_test_samples)
-    writecsv("$(name)_samples.csv", samples)
+    samples = sample(model, gibbs_test_samples)
+    writecsv("$(gm_name)_samples.csv", samples)
 end
 
-for (name, model) in gms
-    samples = readcsv("$(name)_samples.csv")
-    for formulation in formulations
+for (gm_name, model) in gms
+    samples = readcsv("$(gm_name)_samples.csv")
+    for (form_name, formulation) in formulations
         srand(0) # fix random number generator
-        learned_gm = inverse_ising(samples, method=formulation)
-        writecsv("$(name)_$(formulation)_learned.csv", learned_gm)
+        learned_gm = learn(samples, formulation)
+        writecsv("$(gm_name)_$(form_name)_learned.csv", learned_gm)
     end
 end
