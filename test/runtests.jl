@@ -14,8 +14,9 @@ include("common.jl")
     end
 end
 
-#=
+
 @testset "inverse ising formulations" begin
+    #=
     for (form_name, formulation) in formulations
         @testset "  $(form_name)" begin
             for (name, gm) in gms
@@ -29,8 +30,30 @@ end
             end
         end
     end
+    =#
+
+
+    samples = readcsv("data/mvt_samples.csv")
+
+    rand(0) # fix random number generator
+    learned_gm_rise = learn(samples, RISE())
+    base_learned_gm = readcsv("data/mvt_RISE_learned.csv")
+    println(abs.(learned_gm_rise - base_learned_gm))
+    @test isapprox(learned_gm_rise, base_learned_gm)
+
+    srand(0) # fix random number generator
+    learned_gm_logrise = learn(samples, logRISE())
+    base_learned_gm = readcsv("data/mvt_logRISE_learned.csv")
+    println(abs.(learned_gm_logrise - base_learned_gm))
+    @test isapprox(learned_gm_logrise, base_learned_gm)
+
+    srand(0) # fix random number generator
+    learned_gm_rple = learn(samples, RPLE())
+    base_learned_gm = readcsv("data/mvt_RPLE_learned.csv")
+    println(abs.(learned_gm_rple - base_learned_gm))
+    @test isapprox(learned_gm_rple, base_learned_gm)
 end
-=#
+
 
 type AccuracyTest
    formulation::GMLFormulation
