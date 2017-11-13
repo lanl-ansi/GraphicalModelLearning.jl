@@ -20,7 +20,7 @@ type RISE <: GMLFormulation
     symmetrization::Bool
 end
 # default values
-RISE() = RISE(0.8, true)
+RISE() = RISE(0.4, true)
 
 type logRISE <: GMLFormulation
     regularizer::Real
@@ -34,7 +34,7 @@ type RPLE <: GMLFormulation
     symmetrization::Bool
 end
 # default values
-RPLE() = RPLE(0.8, true)
+RPLE() = RPLE(0.2, true)
 
 
 @compat abstract type GMLMethod end
@@ -43,7 +43,7 @@ type NLP <: GMLMethod
     solver::MathProgBase.AbstractMathProgSolver
 end
 # default values
-NLP() = NLP(IpoptSolver(tol=1e-12, print_level=0))
+NLP() = NLP(IpoptSolver(print_level=0))
 
 
 # default settings
@@ -93,7 +93,7 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::RISE, method::NLP)
         reconstruction = 0.5*(reconstruction + transpose(reconstruction))
     end
 
-    return reconstruction 
+    return reconstruction
 end
 
 
@@ -131,7 +131,7 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::logRISE, method::NLP
         reconstruction = 0.5*(reconstruction + transpose(reconstruction))
     end
 
-    return reconstruction 
+    return reconstruction
 end
 
 
@@ -169,7 +169,7 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::RPLE, method::NLP)
         reconstruction = 0.5*(reconstruction + transpose(reconstruction))
     end
 
-    return reconstruction 
+    return reconstruction
 end
 
 
@@ -243,7 +243,7 @@ function inverse_ising_archive(samples_histo; method::Symbol=:logRISE, regulariz
         reconstruction = 0.5*(reconstruction + transpose(reconstruction))
     end
 
-    return reconstruction 
+    return reconstruction
 end
 
 

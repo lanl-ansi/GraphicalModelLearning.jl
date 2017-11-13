@@ -1,5 +1,5 @@
 using GraphicalModelLearning
-
+using Ipopt
 using Base.Test
 
 include("common.jl")
@@ -36,19 +36,19 @@ end
     samples = readcsv("data/mvt_samples.csv")
 
     rand(0) # fix random number generator
-    learned_gm_rise = learn(samples, RISE())
+    learned_gm_rise = learn(samples, RISE(0.2, false), NLP(IpoptSolver(print_level=0)))
     base_learned_gm = readcsv("data/mvt_RISE_learned.csv")
     println(abs.(learned_gm_rise - base_learned_gm))
     @test isapprox(learned_gm_rise, base_learned_gm)
 
     srand(0) # fix random number generator
-    learned_gm_logrise = learn(samples, logRISE())
+    learned_gm_logrise = learn(samples, logRISE(0.2, false), NLP(IpoptSolver(print_level=0)))
     base_learned_gm = readcsv("data/mvt_logRISE_learned.csv")
     println(abs.(learned_gm_logrise - base_learned_gm))
     @test isapprox(learned_gm_logrise, base_learned_gm)
 
     srand(0) # fix random number generator
-    learned_gm_rple = learn(samples, RPLE())
+    learned_gm_rple = learn(samples, RPLE(0.2, false), NLP(IpoptSolver(print_level=0)))
     base_learned_gm = readcsv("data/mvt_RPLE_learned.csv")
     println(abs.(learned_gm_rple - base_learned_gm))
     @test isapprox(learned_gm_rple, base_learned_gm)
