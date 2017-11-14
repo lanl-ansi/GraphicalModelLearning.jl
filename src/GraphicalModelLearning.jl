@@ -13,6 +13,8 @@ using Ipopt
 
 using Compat # used for julia v0.5 abstract types
 
+include("data.jl")
+
 @compat abstract type GMLFormulation end
 
 type RISE <: GMLFormulation

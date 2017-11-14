@@ -15,6 +15,7 @@ include("common.jl")
 end
 
 
+
 @testset "inverse ising formulations" begin
 
     for (form_name, formulation) in formulations
@@ -52,6 +53,7 @@ end
     #println(abs.(learned_gm_rple - base_learned_gm))
     @test isapprox(learned_gm_rple, base_learned_gm)
 end
+
 
 
 type AccuracyTest
