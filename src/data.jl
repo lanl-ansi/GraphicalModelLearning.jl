@@ -44,11 +44,33 @@ function check_samples_data(varible_count::Int, alphabet::Symbol, samples::Array
 end
 
 function Base.show(io::IO, s::GMLSamples)
-    println(io, s.varible_count, " ", s.alphabet)
+    println(io, "vars: ", s.varible_count)
+    println(io, "alphabet: ", s.alphabet)
+    println(io, "samples: ")
     if !isnull(s.variable_names)
         println(io, get(s.variable_names))
     end
     for sample in s.samples
         println(sample)
     end
+end
+
+function Base.convert{T <: Real}(::Type{GMLSamples}, m::Array{T,2})
+    alphabet = :unknown
+    varible_count = size(m,2) - 1
+
+    values = Set{Int}()
+    samples::Array{GMLSample,1} = []
+    for r in 1:size(m, 1)
+        row = convert(Array{Int64,1}, m[r,:])
+        push!(samples, GMLSample(row[1], row[2:end]))
+        push!(values, row[2:end]...)
+    end
+
+    if length(values) == 2 && in(-1, values) && in(1, values)
+        info("detected spin alphabet")
+        alphabet = :spin
+    end
+
+    return GMLSamples(varible_count, alphabet, samples)
 end
