@@ -46,10 +46,12 @@ end
 function Base.show(io::IO, s::GMLSamples)
     println(io, "vars: ", s.varible_count)
     println(io, "alphabet: ", s.alphabet)
-    println(io, "samples: ")
     if !isnull(s.variable_names)
+        println(io, "variable names: ")
         println(io, get(s.variable_names))
     end
+
+    println(io, "samples: ")
     for sample in s.samples
         println(sample)
     end
