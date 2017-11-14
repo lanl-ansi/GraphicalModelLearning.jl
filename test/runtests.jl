@@ -83,3 +83,15 @@ srand(0) # fix random number generator
         end
     end
 end
+
+
+
+srand(0) # fix random number generator
+@testset "docs example" begin
+    model = [0.0 0.1 0.2; 0.1 0.0 0.3; 0.2 0.3 0.0]
+    samples = sample(model, 100000)
+    learned = learn(samples)
+
+    err = abs.(model - learned)
+    @test maximum(err) <= 0.01
+end
