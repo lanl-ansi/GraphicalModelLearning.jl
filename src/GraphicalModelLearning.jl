@@ -4,7 +4,7 @@ module GraphicalModelLearning
 
 export learn, inverse_ising
 
-export GMLFormulation, RISE, logRISE, RPLE
+export GMLFormulation, RISE, logRISE, RPLE, RISEA
 export GMLMethod, NLP
 
 using JuMP
@@ -21,6 +21,13 @@ type RISE <: GMLFormulation
 end
 # default values
 RISE() = RISE(0.4, true)
+
+type RISEA <: GMLFormulation
+    regularizer::Real
+    symmetrization::Bool
+end
+# default values
+RISEA() = RISEA(0.4, true)
 
 type logRISE <: GMLFormulation
     regularizer::Real
@@ -78,6 +85,75 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::RISE, method::NLP)
             sum((samples[k,1]/num_samples)*exp(-sum(x[i]*nodal_stat[k,i] for i=1:num_spins)) for k=1:num_conf) +
             lambda*sum(z[j] for j=1:num_spins if current_spin!=j)
         )
+
+        for j in 1:num_spins
+            @constraint(m, z[j] >=  x[j]) #z_plus
+            @constraint(m, z[j] >= -x[j]) #z_minus
+        end
+
+        status = solve(m)
+        @assert status == :Optimal
+        reconstruction[current_spin,1:num_spins] = deepcopy(getvalue(x))
+    end
+
+    if formulation.symmetrization
+        reconstruction = 0.5*(reconstruction + transpose(reconstruction))
+    end
+
+    return reconstruction
+end
+
+function risea_obj(var, stat, weight)
+    (num_conf, num_spins) = size(stat)
+    chvar = cosh.(var)
+    shvar = sinh.(var)
+    return sum(weight[k]*prod(0.5*(chvar[i] - shvar[i]*stat[k,i]) for i=1:num_spins) for k=1:num_conf)
+end
+
+function grad_risea_obj(g, var, stat, weight)
+    (num_conf, num_spins) = size(stat)
+    chvar = cosh.(var)
+    shvar = sinh.(var)
+    partial_obj = [- weight[k] * prod(0.5*(chvar[i] - shvar[i]*stat[k,i]) for i=1:num_spins) for k=1:num_conf]
+    for i=1:num_spins
+        g[i] = sum(stat[k,i]*partial_obj[k] for k=1:num_conf)
+    end
+end
+
+function learn{T <: Real}(samples::Array{T,2}, formulation::RISEA, method::NLP)
+    num_conf, num_spins, num_samples = data_info(samples)
+
+    lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
+
+    reconstruction = Array{Float64}(num_spins, num_spins)
+
+    for current_spin = 1:num_spins
+        nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
+        weight = samples[1:num_conf,1] / num_samples
+
+        obj(x...) = risea_obj(x, nodal_stat, weight)
+        function grad(g, x...)
+            grad_risea_obj(g, x, nodal_stat, weight)
+        end
+
+        function l1norm(z...)
+            lambda*sum(z[j] for j=1:num_spins if current_spin!=j)
+        end
+
+        m = Model(solver = method.solver)
+
+        JuMP.register(m, :obj, num_spins, obj, grad)
+        JuMP.register(m, :l1norm, num_spins, l1norm, autodiff=true)
+
+        @variable(m, x[1:num_spins])
+        @variable(m, z[1:num_spins])
+
+        JuMP.setNLobjective(m, :Min, Expr(:call, :+,
+                                        Expr(:call, :obj, [x[i] for i=1:num_spins]...),
+                                        Expr(:call, :l1norm, [z[i] for i=1:num_spins]...)
+                                        )
+                            )
+
 
         for j in 1:num_spins
             @constraint(m, z[j] >=  x[j]) #z_plus
