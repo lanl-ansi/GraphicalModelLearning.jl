@@ -107,14 +107,14 @@ function risea_obj(var, stat, weight)
     (num_conf, num_spins) = size(stat)
     chvar = cosh.(var)
     shvar = sinh.(var)
-    return sum(weight[k]*prod(0.5*(chvar[i] - shvar[i]*stat[k,i]) for i=1:num_spins) for k=1:num_conf)
+    return sum(weight[k]*prod(chvar[i] - shvar[i]*stat[k,i] for i=1:num_spins) for k=1:num_conf)
 end
 
 function grad_risea_obj(g, var, stat, weight)
     (num_conf, num_spins) = size(stat)
     chvar = cosh.(var)
     shvar = sinh.(var)
-    partial_obj = [- weight[k] * prod(0.5*(chvar[i] - shvar[i]*stat[k,i]) for i=1:num_spins) for k=1:num_conf]
+    partial_obj = [- weight[k] * prod(chvar[i] - shvar[i]*stat[k,i] for i=1:num_spins) for k=1:num_conf]
     for i=1:num_spins
         g[i] = sum(stat[k,i]*partial_obj[k] for k=1:num_conf)
     end
@@ -148,9 +148,10 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::RISEA, method::NLP)
         @variable(m, x[1:num_spins])
         @variable(m, z[1:num_spins])
 
+
         JuMP.setNLobjective(m, :Min, Expr(:call, :+,
-                                        Expr(:call, :obj, [x[i] for i=1:num_spins]...),
-                                        Expr(:call, :l1norm, [z[i] for i=1:num_spins]...)
+                                            Expr(:call, :obj, x...),
+                                            Expr(:call, :l1norm, z...)
                                         )
                             )
 
