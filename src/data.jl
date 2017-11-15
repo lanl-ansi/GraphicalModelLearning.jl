@@ -51,6 +51,7 @@ Base.start(samples::GMLSamples) = start(samples.samples)
 Base.next(samples::GMLSamples, state) = next(samples.samples, state)
 Base.done(samples::GMLSamples, state) = done(samples.samples, state)
 
+Base.length(samples::GMLSamples) = length(samples.samples)
 
 function Base.show(io::IO, s::GMLSamples)
     println(io, "vars: ", s.varible_count)
@@ -65,8 +66,6 @@ function Base.show(io::IO, s::GMLSamples)
         println(sample)
     end
 end
-
-Base.length(samples::GMLSamples) = length(samples.samples)
 
 function Base.convert{T <: Int}(::Type{GMLSamples}, m::Array{T,2})
     alphabet = :integer
