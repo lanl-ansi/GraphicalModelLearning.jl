@@ -12,11 +12,11 @@ include("../common.jl")
 for (gm_name, model) in gms
     srand(0) # fix random number generator
     samples = sample(model, gibbs_test_samples)
-    writecsv("$(gm_name)_samples.csv", samples)
+    writecsv("$(gm_name)_samples.csv", convert(Array{Int,2}, samples))
 end
 
 for (gm_name, model) in gms
-    samples = readcsv("$(gm_name)_samples.csv")
+    samples = readcsv("$(gm_name)_samples.csv", Int)
     for (form_name, formulation) in formulations
         srand(0) # fix random number generator
         learned_gm = learn(samples, formulation)
