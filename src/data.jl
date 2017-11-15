@@ -1,5 +1,6 @@
 # data structures for models and samples
 
+export GMLSample, GMLSamples
 
 type GMLSample
     count::Int
@@ -17,7 +18,7 @@ function Base.show(io::IO, s::GMLSample)
 end
 
 
-alphabets = [:spin]
+alphabets = [:spin, :boolean, :integer, :integer_pos, :real, :real_pos]
 
 type GMLSamples
     varible_count::Int
@@ -43,6 +44,14 @@ function check_samples_data(varible_count::Int, alphabet::Symbol, samples::Array
     return true
 end
 
+Base.getindex(samples::GMLSamples, i) = samples.samples[i]
+Base.getindex(samples::GMLSamples, i, j) = samples.samples[i].assignment[j]
+
+Base.start(samples::GMLSamples) = start(samples.samples)
+Base.next(samples::GMLSamples, state) = next(samples.samples, state)
+Base.done(samples::GMLSamples, state) = done(samples.samples, state)
+
+
 function Base.show(io::IO, s::GMLSamples)
     println(io, "vars: ", s.varible_count)
     println(io, "alphabet: ", s.alphabet)
@@ -57,22 +66,41 @@ function Base.show(io::IO, s::GMLSamples)
     end
 end
 
-function Base.convert{T <: Real}(::Type{GMLSamples}, m::Array{T,2})
-    alphabet = :unknown
+Base.length(samples::GMLSamples) = length(samples.samples)
+
+function Base.convert{T <: Int}(::Type{GMLSamples}, m::Array{T,2})
+    alphabet = :integer
     varible_count = size(m,2) - 1
 
     values = Set{Int}()
     samples::Array{GMLSample,1} = []
     for r in 1:size(m, 1)
-        row = convert(Array{Int64,1}, m[r,:])
+        row = m[r,:]
         push!(samples, GMLSample(row[1], row[2:end]))
         push!(values, row[2:end]...)
     end
 
-    if length(values) == 2 && in(-1, values) && in(1, values)
-        info("detected spin alphabet")
-        alphabet = :spin
+    if length(values) == 2
+        if -1 in values && 1 in values
+            info("detected spin alphabet")
+            alphabet = :spin
+        elseif 0 in values && 1 in values
+            info("detected spin alphabet")
+            alphabet = :boolean
+        end
+    else
+        if prod([v >= 1 for v in values]) == 1
+            info("detected integer_pos alphabet")
+            alphabet = :integer_pos
+        end
     end
 
     return GMLSamples(varible_count, alphabet, samples)
 end
+
+function Base.convert{T <: Int}(::Type{Array{T,2}}, s::GraphicalModelLearning.GMLSamples)
+    assigments = [s[i,j] for i in 1:length(s), j in 1:s.varible_count]
+    counts = [sample.count for sample in s.samples]
+    return hcat(counts, assigments)
+end
+

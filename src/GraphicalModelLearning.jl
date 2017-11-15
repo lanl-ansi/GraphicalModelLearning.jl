@@ -49,8 +49,9 @@ NLP() = NLP(IpoptSolver(print_level=0))
 
 
 # default settings
-learn{T <: Real}(samples::Array{T,2}) = learn(samples, RISE(), NLP())
-learn{T <: Real, S <: GMLFormulation}(samples::Array{T,2}, formulation::S) = learn(samples, formulation, NLP())
+learn{T <: Real}(samples::Array{T,2}, args...; kwargs...) = learn(convert(GMLSamples, samples), args...; kwargs...)
+learn(samples::GMLSamples) = learn(samples, RISE(), NLP())
+learn{T <: GMLFormulation}(samples::GMLSamples, formulation::T) = learn(samples, formulation, NLP())
 
 
 function data_info{T <: Real}(samples::Array{T,2})
@@ -61,15 +62,18 @@ function data_info{T <: Real}(samples::Array{T,2})
 end
 
 
-function learn{T <: Real}(samples::Array{T,2}, formulation::RISE, method::NLP)
-    num_conf, num_spins, num_samples = data_info(samples)
+function learn(samples::GMLSamples, formulation::RISE, method::NLP)
+    @assert(samples.alphabet == :spin)
+
+    num_spins = samples.varible_count
+    num_samples = sum([sample.count for sample in samples]) #TODO find a clean name for this operation
 
     lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
 
     reconstruction = Array{Float64}(num_spins, num_spins)
 
     for current_spin = 1:num_spins
-        nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
+        nodal_stat  = [ samples[k, current_spin] * (i == current_spin ? 1 : samples[k,i]) for k=1:length(samples), i=1:num_spins]
 
         m = Model(solver = method.solver)
 
@@ -77,7 +81,7 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::RISE, method::NLP)
         @variable(m, z[1:num_spins])
 
         @NLobjective(m, Min,
-            sum((samples[k,1]/num_samples)*exp(-sum(x[i]*nodal_stat[k,i] for i=1:num_spins)) for k=1:num_conf) +
+            sum((samples[k].count/num_samples)*exp(-sum(x[i]*nodal_stat[k,i] for i=1:num_spins)) for k=1:length(samples)) +
             lambda*sum(z[j] for j=1:num_spins if current_spin!=j)
         )
 
@@ -99,7 +103,9 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::RISE, method::NLP)
 end
 
 
-function learn{T <: Real}(samples::Array{T,2}, formulation::logRISE, method::NLP)
+function learn(samples::GMLSamples, formulation::logRISE, method::NLP)
+    samples = convert(Array{Int,2}, samples)
+
     num_conf, num_spins, num_samples = data_info(samples)
 
     lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
@@ -137,7 +143,9 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::logRISE, method::NLP
 end
 
 
-function learn{T <: Real}(samples::Array{T,2}, formulation::RPLE, method::NLP)
+function learn(samples::GMLSamples, formulation::RPLE, method::NLP)
+    samples = convert(Array{Int,2}, samples)
+
     num_conf, num_spins, num_samples = data_info(samples)
 
     lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
@@ -207,9 +215,9 @@ function sample_generation{T <: Real}(sample_number::Integer, adj::Array{T,2}, p
   raw_sample = StatsBase.sample(items, StatsBase.Weights(weights), sample_number)
   raw_binning= countmap(raw_sample)
 
-  spin_sample = [ vcat(raw_binning[i], int_to_spin(i, spin_number)) for i in keys(raw_binning)]
-  spin_sample = hcat(spin_sample...)'
-  return spin_sample
+  samples = [GMLSample(count, int_to_spin(i, spin_number)) for (i, count) in raw_binning]
+
+  return GMLSamples(spin_number, :spin, samples)
 end
 
 sample{T <: Real}(adjacency_matrix::Array{T,2}, number_sample::Integer) = sample(adjacency_matrix, number_sample, Gibbs())

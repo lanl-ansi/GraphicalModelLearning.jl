@@ -1,6 +1,10 @@
 using GraphicalModelLearning
 using Ipopt
 using Base.Test
+using Logging
+
+# suppress info and warnings during testing
+Logging.configure(level=ERROR)
 
 include("common.jl")
 
@@ -9,8 +13,9 @@ include("common.jl")
     for (name, gm) in gms
         srand(0) # fix random number generator
         samples = sample(gm, gibbs_test_samples)
+        samples_tbl = convert(Array{Int,2}, samples)
         base_samples = readcsv("data/$(name)_samples.csv")
-        @test isapprox(samples, base_samples)
+        @test isapprox(samples_tbl, base_samples)
     end
 end
 
@@ -21,7 +26,7 @@ end
     for (form_name, formulation) in formulations
         @testset "  $(form_name)" begin
             for (name, gm) in gms
-                samples = readcsv("data/$(name)_samples.csv")
+                samples = readcsv("data/$(name)_samples.csv", Int)
                 srand(0) # fix random number generator
                 #learned_gm = inverse_ising(samples, method=formulation)
                 learned_gm = learn(samples, formulation)
@@ -33,7 +38,7 @@ end
     end
 
 
-    samples = readcsv("data/mvt_samples.csv")
+    samples = readcsv("data/mvt_samples.csv", Int)
 
     rand(0) # fix random number generator
     learned_gm_rise = learn(samples, RISE(0.2, false), NLP(IpoptSolver(print_level=0)))
@@ -76,9 +81,9 @@ srand(0) # fix random number generator
     for act in accuracy_tests
         @testset "  $(act.formulation) $(act.samples) $(act.threshold)" begin
             for (gm_name, gm) in gms
-                sample_histo = sample(gm, act.samples)
-                #learned_gm = inverse_ising(sample_histo, method=act.formulation)
-                learned_gm = learn(sample_histo, act.formulation)
+                samples = sample(gm, act.samples)
+                #learned_gm = inverse_ising(samples, method=act.formulation)
+                learned_gm = learn(samples, act.formulation)
                 max_error = maximum(abs.(gm - learned_gm))
                 @test max_error <= act.threshold
             end
