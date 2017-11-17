@@ -14,6 +14,16 @@ include("common.jl")
     end
 end
 
+@testset "gibbs sampler with replicates" begin
+    for (name, gm) in gms
+        srand(0) # fix random number generator
+        samples_set = sample(gm, gibbs_test_samples, 3)
+        for samples in samples_set
+            @test sum(samples[:,1]) == gibbs_test_samples
+        end
+    end
+end
+
 
 @testset "inverse ising formulations" begin
 
