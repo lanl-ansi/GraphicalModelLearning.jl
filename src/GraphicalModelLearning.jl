@@ -105,16 +105,18 @@ end
 
 function risea_obj(var, stat, weight)
     (num_conf, num_spins) = size(stat)
-    chvar = cosh.(var)
-    shvar = sinh.(var)
-    return sum(weight[k]*prod(chvar[i] - shvar[i]*stat[k,i] for i=1:num_spins) for k=1:num_conf)
+    #chvar = cosh.(var)
+    #shvar = sinh.(var)
+    #return sum(weight[k]*prod(chvar[i] - shvar[i]*stat[k,i] for i=1:num_spins) for k=1:num_conf)
+    return sum(weight[k]*exp(-sum(var[i]*stat[k,i] for i=1:num_spins)) for k=1:num_conf)
 end
 
 function grad_risea_obj(g, var, stat, weight)
     (num_conf, num_spins) = size(stat)
-    chvar = cosh.(var)
-    shvar = sinh.(var)
-    partial_obj = [- weight[k] * prod(chvar[i] - shvar[i]*stat[k,i] for i=1:num_spins) for k=1:num_conf]
+    #chvar = cosh.(var)
+    #shvar = sinh.(var)
+    #partial_obj = [- weight[k] * prod(chvar[i] - shvar[i]*stat[k,i] for i=1:num_spins) for k=1:num_conf]
+    partial_obj = [- weight[k]*exp(-sum(var[i]*stat[k,i] for i=1:num_spins)) for k=1:num_conf]
     for i=1:num_spins
         g[i] = sum(stat[k,i]*partial_obj[k] for k=1:num_conf)
     end
