@@ -24,7 +24,7 @@ bool_to_spin(bool::Int) = 2*bool-1
 
 function weigh_proba{T <: Real}(int_representation::Int, adj::Array{T,2}, prior::Array{T,1}, assignment_tmp::Array{Int,1})
     digits!(assignment_tmp, int_representation, 2)
-    bool_to_spin.(assignment_tmp)
+    assignment_tmp .= bool_to_spin.(assignment_tmp)
     return exp(((0.5) * assignment_tmp' * adj * assignment_tmp + prior' * assignment_tmp)[1])
 end
 

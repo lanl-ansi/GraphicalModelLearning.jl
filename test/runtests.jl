@@ -10,6 +10,9 @@ include("common.jl")
         srand(0) # fix random number generator
         samples = sample(gm, gibbs_test_samples)
         base_samples = readcsv("data/$(name)_samples.csv")
+        #println(base_samples)
+        #println(samples)
+        #println(abs.(base_samples-samples))
         @test isapprox(samples, base_samples)
     end
 end
