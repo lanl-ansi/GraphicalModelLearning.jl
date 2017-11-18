@@ -8,18 +8,18 @@ using StatsBase
 
 type Gibbs <: GMSampler end
 
-function int_to_spin(int_representation, spin_number)
+function int_to_spin(int_representation::Int, spin_number::Int)
     spin = 2*digits(int_representation, 2, spin_number)-1
     return spin
 end
 
-function weigh_proba(int_representation, adj, prior)
+function weigh_proba{T <: Real}(int_representation::Int, adj::Array{T,2}, prior::Array{T,1})
     spin_number  = size(adj,1)
-    current_spin = int_to_spin(int_representation, spin_number)
-    return exp(((0.5) * current_spin' * adj * current_spin + prior * current_spin)[1])
+    current_spins = int_to_spin(int_representation, spin_number)
+    return exp(((0.5) * current_spins' * adj * current_spins + prior' * current_spins)[1])
 end
 
-function sample_generation{T <: Real}(samples_per_bin::Integer, adj::Array{T,2}, prior, bins::Int)
+function sample_generation{T <: Real}(samples_per_bin::Integer, adj::Array{T,2}, prior::Array{T,1}, bins::Int)
     @assert bins >= 1
 
     spin_number   = size(adj,1)
@@ -44,7 +44,7 @@ sample{T <: Real}(adjacency_matrix::Array{T,2}, number_sample::Integer) = sample
 sample{T <: Real}(adjacency_matrix::Array{T,2}, number_sample::Integer, replicates::Integer) = sample(adjacency_matrix, number_sample, replicates, Gibbs())
 
 function sample{T <: Real}(adjacency_matrix::Array{T,2}, number_sample::Integer, replicates::Integer, sampler::Gibbs)
-    prior_vector = transpose(diag(adjacency_matrix)) #priors, or magnetic fields part
+    prior_vector = transpose(diag(adjacency_matrix))[1,:] #priors, or magnetic fields part
 
     # generation of samples
     samples = sample_generation(number_sample, adjacency_matrix, prior_vector, replicates)
