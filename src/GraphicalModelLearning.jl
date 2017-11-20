@@ -13,6 +13,8 @@ using Ipopt
 
 using Compat # used for julia v0.5 abstract types
 
+include("models.jl")
+
 include("sampling.jl")
 
 @compat abstract type GMLFormulation end
