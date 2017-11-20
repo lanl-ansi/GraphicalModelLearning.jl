@@ -4,8 +4,8 @@
 
 using GraphicalModelLearning
 
-# remove old files
-`rm -rf *.csv`
+## remove old files
+#`rm -rf *.csv`
 
 include("../common.jl")
 

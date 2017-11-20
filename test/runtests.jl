@@ -5,6 +5,18 @@ using Base.Test
 include("common.jl")
 
 
+@testset "factor graphs" begin
+    for (name, gm) in gms
+        matrix = convert(Array{Float64,2}, gm)
+        gm2 = FactorGraph(matrix)
+        for key in keys(gm)
+            @test isapprox(gm[key], gm2[key])
+            @test isapprox(gm[key], matrix[key...])
+        end
+    end
+end
+
+
 @testset "gibbs sampler" begin
     for (name, gm) in gms
         srand(0) # fix random number generator
@@ -90,7 +102,7 @@ srand(0) # fix random number generator
                 sample_histo = sample(gm, act.samples)
                 #learned_gm = inverse_ising(sample_histo, method=act.formulation)
                 learned_gm = learn(sample_histo, act.formulation)
-                max_error = maximum(abs.(gm - learned_gm))
+                max_error = maximum(abs.(convert(Array{Float64,2}, gm) - learned_gm))
                 @test max_error <= act.threshold
             end
         end
@@ -101,10 +113,10 @@ end
 
 srand(0) # fix random number generator
 @testset "docs example" begin
-    model = [0.0 0.1 0.2; 0.1 0.0 0.3; 0.2 0.3 0.0]
+    model = FactorGraph([0.0 0.1 0.2; 0.1 0.0 0.3; 0.2 0.3 0.0])
     samples = sample(model, 100000)
     learned = learn(samples)
 
-    err = abs.(model - learned)
+    err = abs.(convert(Array{Float64,2}, model) - learned)
     @test maximum(err) <= 0.01
 end
