@@ -5,6 +5,18 @@ using Base.Test
 include("common.jl")
 
 
+@testset "factor graphs" begin
+    for (name, gm) in gms
+        matrix = convert(Array{Float64,2}, gm)
+        gm2 = FactorGraph(matrix)
+        for key in keys(gm)
+            @test isapprox(gm[key], gm2[key])
+            @test isapprox(gm[key], matrix[key...])
+        end
+    end
+end
+
+
 @testset "gibbs sampler" begin
     for (name, gm) in gms
         srand(0) # fix random number generator
