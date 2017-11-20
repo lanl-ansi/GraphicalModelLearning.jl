@@ -48,7 +48,7 @@ end
 function Base.show(io::IO, gm::FactorGraph)
     println(io, "alphabet: ", gm.alphabet)
     println(io, "vars: ", gm.varible_count)
-    if !isnull(s.variable_names)
+    if !isnull(gm.variable_names)
         println(io, "variable names: ")
         println(io, "  ", get(gm.variable_names))
     end
@@ -68,6 +68,22 @@ Base.length(gm::FactorGraph) = length(gm.terms)
 Base.getindex(gm::FactorGraph, i) = gm.terms[i]
 Base.keys(gm::FactorGraph) = keys(gm.terms)
 
+
+function diag_keys(gm::FactorGraph)
+    dkeys = Tuple[]
+    for i in 1:gm.varible_count
+        key = diag_key(gm, i)
+        if key in keys(gm.terms)
+            push!(dkeys, key)
+        end
+    end
+    return sort(dkeys)
+end
+
+diag_key(gm::FactorGraph, i::Int) = tuple(fill(i, gm.order)...)
+
+Base.diag{T <: Real}(gm::FactorGraph{T}) = [ get(gm.terms, diag_key(gm, i), zero(T)) for i in 1:gm.varible_count ]
+
 Base.DataFmt.writecsv{T <: Real}(io, gm::FactorGraph{T}, args...; kwargs...) = writecsv(io, convert(Array{T,2}, gm), args...; kwargs...)
 
 Base.convert{T <: Real}(::Type{FactorGraph}, m::Array{T,2}) = convert(FactorGraph{T}, m)
@@ -80,7 +96,10 @@ function Base.convert{T <: Real}(::Type{FactorGraph{T}}, m::Array{T,2})
 
     terms = Dict{Tuple,T}()
     for key in permutations(1:varible_count, 2)
-        terms[key] = m[key...]
+        weight = m[key...]
+        if !isapprox(weight, 0.0)
+            terms[key] = weight
+        end
 
         rev = reverse(key)
         if !isapprox(m[rev...], 0.0) && !isapprox(m[key...], m[rev...])
@@ -100,6 +119,8 @@ function Base.convert{T <: Real}(::Type{Array{T,2}}, gm::FactorGraph{T})
     matrix = zeros(gm.varible_count, gm.varible_count)
     for (k,v) in gm
         matrix[k...] = v
+        r = reverse(k)
+        matrix[r...] = v
     end
 
     return matrix

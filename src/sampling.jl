@@ -13,20 +13,25 @@ function int_to_spin(int_representation, spin_number)
     return spin
 end
 
-function weigh_proba(int_representation, adj, prior)
-    spin_number  = size(adj,1)
-    current_spin = int_to_spin(int_representation, spin_number)
-    return exp(((0.5) * current_spin' * adj * current_spin + prior * current_spin)[1])
+function weigh_proba{T <: Real}(int_representation, gm::FactorGraph{T}, dkeys::Vector{Tuple})
+    current_spin = int_to_spin(int_representation, gm.varible_count)
+
+    base = sum(Float64[weight * current_spin[i] * current_spin[j] for ((i,j), weight) in gm])
+    feild = sum(Float64[gm[(i,j)] * current_spin[i] for (i,j) in dkeys])
+
+    return exp(base + feild)
 end
 
-function sample_generation{T <: Real}(samples_per_bin::Integer, adj::Array{T,2}, prior, bins::Int)
+function sample_generation{T <: Real}(gm::FactorGraph{T}, samples_per_bin::Integer, bins::Int)
     @assert bins >= 1
 
-    spin_number   = size(adj,1)
+    spin_number   = gm.varible_count
     config_number = 2^spin_number
 
+    dkeys = diag_keys(gm)
+
     items   = [i for i in 0:(config_number-1)]
-    weights = [weigh_proba(i, adj, prior) for i in (0:config_number-1)]
+    weights = [weigh_proba(i, gm, dkeys) for i in (0:config_number-1)]
 
     raw_sample = StatsBase.sample(items, StatsBase.Weights(weights), samples_per_bin*bins, ordered=false)
     raw_sample_bins = reshape(raw_sample, bins, samples_per_bin)
@@ -40,14 +45,19 @@ function sample_generation{T <: Real}(samples_per_bin::Integer, adj::Array{T,2},
     return spin_samples
 end
 
-sample{T <: Real}(adjacency_matrix::Array{T,2}, number_sample::Integer) = sample(adjacency_matrix, number_sample, 1, Gibbs())[1]
-sample{T <: Real}(adjacency_matrix::Array{T,2}, number_sample::Integer, replicates::Integer) = sample(adjacency_matrix, number_sample, replicates, Gibbs())
+sample{T <: Real}(gm::FactorGraph{T}, number_sample::Integer) = sample(gm, number_sample, 1, Gibbs())[1]
+sample{T <: Real}(gm::FactorGraph{T}, number_sample::Integer, replicates::Integer) = sample(gm, number_sample, replicates, Gibbs())
 
-function sample{T <: Real}(adjacency_matrix::Array{T,2}, number_sample::Integer, replicates::Integer, sampler::Gibbs)
-    prior_vector = transpose(diag(adjacency_matrix)) #priors, or magnetic fields part
+function sample{T <: Real}(gm::FactorGraph{T}, number_sample::Integer, replicates::Integer, sampler::Gibbs)
+    if gm.order != 2
+        error("sampling is only supported for FactorGraphs of order 2, given order $(gm.order)")
+    end
+    if gm.alphabet != :spin
+        error("sampling is only supported for spin FactorGraphs, given alphabet $(gm.alphabet)")
+    end
 
     # generation of samples
-    samples = sample_generation(number_sample, adjacency_matrix, prior_vector, replicates)
+    samples = sample_generation(gm, number_sample, replicates)
 
     return samples
 end

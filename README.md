@@ -13,11 +13,11 @@ Try the following commands in julia,
 ```
 using GraphicalModelLearning
 
-model = [0.0 0.1 0.2; 0.1 0.0 0.3; 0.2 0.3 0.0]
+model = FactorGraph([0.0 0.1 0.2; 0.1 0.0 0.3; 0.2 0.3 0.0])
 samples = sample(model, 100000)
 learned = learn(samples)
 
-err = abs.(model - learned)
+err = abs.(convert(Array{Float64,2}, model) - learned)
 ```
 
 Note that the first invocation of `learn` will be slow as the dependent libraries are compiled.  Subsequent calls will be fast.
