@@ -18,11 +18,11 @@ FactorGraph{T <: Real}(matrix::Array{T,2}) = convert(FactorGraph{T}, matrix)
 function check_model_data{T <: Real}(order::Int, varible_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}, variable_names::Nullable{Vector{String}})
     if !in(alphabet, alphabets)
         error("alphabet $(alphabet) is not supported")
-        return false 
+        return false
     end
     if !isnull(variable_names) && length(variable_names) != varible_count
         error("expected $(varible_count) but only given $(length(variable_names))")
-        return false 
+        return false
     end
     for (k,v) in terms
         if length(k) != order
@@ -130,21 +130,20 @@ end
 
 permutations(items, order::Int; asymmetric::Bool = false) = sort(permutations([], items, order, asymmetric))
 
-function permutations(partical_perm::Array{Any,1}, items, order::Int, asymmetric::Bool)
+function permutations(partial_perm::Array{Any,1}, items, order::Int, asymmetric::Bool)
     if order == 0
-        return [tuple(partical_perm...)]
+        return [tuple(partial_perm...)]
     else
         perms = []
         for item in items
-            if !asymmetric && length(partical_perm) > 0 
-                if partical_perm[end] < item
+            if !asymmetric && length(partial_perm) > 0
+                if partial_perm[end] >= item
                     continue
                 end
             end
-            perm = permutations(vcat([item], partical_perm), items, order-1, asymmetric)
+            perm = permutations(vcat(partial_perm, item), items, order-1, asymmetric)
             append!(perms, perm)
         end
         return perms
     end
 end
-
