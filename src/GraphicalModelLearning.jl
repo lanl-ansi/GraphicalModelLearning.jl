@@ -129,9 +129,22 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::multiRISE, method::N
             reconstruction[inter] = deepcopy(nodal_reconstruction[inter])
         end
     end
-    #if formulation.symmetrization
-    #    reconstruction = 0.5*(reconstruction + transpose(reconstruction))
-    #end
+
+    if formulation.symmetrization
+        reconstruction_list = Dict{Tuple,Vector{Real}}()
+        for (k,v) in reconstruction
+            key = tuple(sort([i for i in k])...)
+            if !haskey(reconstruction_list, key)
+                reconstruction_list[key] = Vector{Real}()
+            end
+            push!(reconstruction_list[key], v)
+        end
+
+        reconstruction = Dict{Tuple,Real}()
+        for (k,v) in reconstruction_list
+            reconstruction[k] = mean(v)
+        end
+    end
 
     return reconstruction
 end
