@@ -11,7 +11,11 @@ include("common.jl")
         gm2 = FactorGraph(matrix)
         for key in keys(gm)
             @test isapprox(gm[key], gm2[key])
-            @test isapprox(gm[key], matrix[key...])
+            if length(key) == 1
+                @test isapprox(gm[key], matrix[key..., key...])
+            else
+                @test isapprox(gm[key], matrix[key...])
+            end
         end
     end
 end
@@ -22,6 +26,7 @@ end
         srand(0) # fix random number generator
         samples = sample(gm, gibbs_test_samples)
         base_samples = readcsv("data/$(name)_samples.csv")
+        #println(name)
         #println(base_samples)
         #println(samples)
         #println(abs.(base_samples-samples))
@@ -110,6 +115,37 @@ srand(0) # fix random number generator
 end
 
 
+@testset "inverse multi-body formulations" begin
+
+    for (name, gm) in gms
+        samples = readcsv("data/$(name)_samples.csv")
+        srand(0) # fix random number generator
+        learned_ising = learn(samples, RISE(0.2, false))
+        learned_two_body = learn(samples, multiRISE(0.2, false, 2))
+
+        learned_ising_dict = convert(Dict, learned_ising)
+        #println(learned_ising_dict)
+        #println(learned_two_body)
+
+        @test length(learned_ising_dict) == length(learned_two_body)
+        for (key, value) in learned_ising_dict
+            @test isapprox(learned_two_body[key], value)
+        end
+    end
+
+    samples = readcsv("data/mvt_samples.csv")
+
+    rand(0) # fix random number generator
+    learned_ising = learn(samples, RISE(0.2, false), NLP(IpoptSolver(print_level=0)))
+    learned_two_body = learn(samples, multiRISE(0.2, false, 2), NLP(IpoptSolver(print_level=0)))
+
+    learned_ising_dict = convert(Dict, learned_ising)
+    @test length(learned_ising_dict) == length(learned_two_body)
+    for (key, value) in learned_ising_dict
+        @test isapprox(learned_two_body[key], value)
+    end
+end
+
 
 srand(0) # fix random number generator
 @testset "docs example" begin
@@ -120,3 +156,4 @@ srand(0) # fix random number generator
     err = abs.(convert(Array{Float64,2}, model) - learned)
     @test maximum(err) <= 0.01
 end
+

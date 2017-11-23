@@ -4,7 +4,7 @@ module GraphicalModelLearning
 
 export learn, inverse_ising
 
-export GMLFormulation, RISE, logRISE, RPLE, RISEA
+export GMLFormulation, RISE, logRISE, RPLE, RISEA, multiRISE
 export GMLMethod, NLP
 
 using JuMP
@@ -18,6 +18,14 @@ include("models.jl")
 include("sampling.jl")
 
 @compat abstract type GMLFormulation end
+
+type multiRISE <: GMLFormulation
+    regularizer::Real
+    symmetrization::Bool
+    interaction_order::Integer
+end
+# default values
+multiRISE() = multiRISE(0.4, true, 2)
 
 type RISE <: GMLFormulation
     regularizer::Real
@@ -69,6 +77,64 @@ function data_info{T <: Real}(samples::Array{T,2})
     return num_conf, num_spins, num_samples
 end
 
+function learn{T <: Real}(samples::Array{T,2}, formulation::multiRISE, method::NLP)
+    num_conf, num_spins, num_samples = data_info(samples)
+
+    lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
+    inter_order = formulation.interaction_order
+
+    reconstruction = Dict{Tuple,Real}()
+
+    for current_spin = 1:num_spins
+        nodal_stat = Dict{Tuple,Array{Real,1}}()
+
+        for p = 1:inter_order
+                nodal_keys = Array{Tuple{},1}()
+                neighbours = [i for i=1:num_spins if i!=current_spin]
+                if p == 1
+                    nodal_keys = [(current_spin,)]
+                else
+                    perm = permutations(neighbours, p - 1)
+                    if length(perm) > 0
+                        nodal_keys = [(current_spin, perm[i]...) for i=1:length(perm)]
+                    end
+                end
+
+                for index = 1:length(nodal_keys)
+                    nodal_stat[nodal_keys[index]] =  [ prod(samples[k, 1 + i] for i=nodal_keys[index]) for k=1:num_conf]
+                end
+        end
+
+        m = Model(solver = method.solver)
+
+        @variable(m, x[keys(nodal_stat)])
+        @variable(m, z[keys(nodal_stat)])
+
+        @NLobjective(m, Min,
+            sum((samples[k,1]/num_samples)*exp(-sum(x[inter]*stat[k] for (inter,stat) = nodal_stat)) for k=1:num_conf) +
+            lambda*sum(z[inter] for inter = keys(nodal_stat) if length(inter)>1)
+        )
+
+        for inter in keys(nodal_stat)
+            @constraint(m, z[inter] >=  x[inter]) #z_plus
+            @constraint(m, z[inter] >= -x[inter]) #z_minus
+        end
+
+        status = solve(m)
+        @assert status == :Optimal
+
+
+        nodal_reconstruction = getvalue(x)
+        for inter = keys(nodal_stat)
+            reconstruction[inter] = deepcopy(nodal_reconstruction[inter])
+        end
+    end
+    #if formulation.symmetrization
+    #    reconstruction = 0.5*(reconstruction + transpose(reconstruction))
+    #end
+
+    return reconstruction
+end
 
 function learn{T <: Real}(samples::Array{T,2}, formulation::RISE, method::NLP)
     num_conf, num_spins, num_samples = data_info(samples)

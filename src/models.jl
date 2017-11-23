@@ -18,14 +18,14 @@ FactorGraph{T <: Real}(matrix::Array{T,2}) = convert(FactorGraph{T}, matrix)
 function check_model_data{T <: Real}(order::Int, varible_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}, variable_names::Nullable{Vector{String}})
     if !in(alphabet, alphabets)
         error("alphabet $(alphabet) is not supported")
-        return false 
+        return false
     end
     if !isnull(variable_names) && length(variable_names) != varible_count
         error("expected $(varible_count) but only given $(length(variable_names))")
-        return false 
+        return false
     end
     for (k,v) in terms
-        if length(k) != order
+        if length(k) > order
             error("a term has $(length(k)) indices but should have $(order) indices")
             return false
         end
@@ -95,6 +95,14 @@ function Base.convert{T <: Real}(::Type{FactorGraph{T}}, m::Array{T,2})
     varible_count = size(m,1)
 
     terms = Dict{Tuple,T}()
+
+    for key in permutations(1:varible_count, 1)
+        weight = m[key..., key...]
+        if !isapprox(weight, 0.0)
+            terms[key] = weight
+        end
+    end
+
     for key in permutations(1:varible_count, 2)
         weight = m[key...]
         if !isapprox(weight, 0.0)
@@ -118,33 +126,64 @@ function Base.convert{T <: Real}(::Type{Array{T,2}}, gm::FactorGraph{T})
 
     matrix = zeros(gm.varible_count, gm.varible_count)
     for (k,v) in gm
-        matrix[k...] = v
-        r = reverse(k)
-        matrix[r...] = v
+        if length(k) == 1
+            matrix[k..., k...] = v
+        else
+            matrix[k...] = v
+            r = reverse(k)
+            matrix[r...] = v
+        end
     end
 
     return matrix
 end
 
 
+Base.convert{T <: Real}(::Type{Dict}, m::Array{T,2}) = convert(Dict{Tuple,T}, m)
+function Base.convert{T <: Real}(::Type{Dict{Tuple,T}}, m::Array{T,2})
+    @assert size(m,1) == size(m,2) #check matrix is square
+
+    varible_count = size(m,1)
+
+    terms = Dict{Tuple,T}()
+
+    for key in permutations(1:varible_count, 1)
+        weight = m[key..., key...]
+        if !isapprox(weight, 0.0)
+            terms[key] = weight
+        end
+    end
+
+    for key in permutations(1:varible_count, 2, asymmetric=true)
+        if key[1] != key[2]
+            weight = m[key...]
+            if !isapprox(weight, 0.0)
+                terms[key] = weight
+            end
+        end
+    end
+
+    return terms
+end
+
+
 
 permutations(items, order::Int; asymmetric::Bool = false) = sort(permutations([], items, order, asymmetric))
 
-function permutations(partical_perm::Array{Any,1}, items, order::Int, asymmetric::Bool)
+function permutations(partial_perm::Array{Any,1}, items, order::Int, asymmetric::Bool)
     if order == 0
-        return [tuple(partical_perm...)]
+        return [tuple(partial_perm...)]
     else
         perms = []
         for item in items
-            if !asymmetric && length(partical_perm) > 0 
-                if partical_perm[end] < item
+            if !asymmetric && length(partial_perm) > 0
+                if partial_perm[end] >= item
                     continue
                 end
             end
-            perm = permutations(vcat([item], partical_perm), items, order-1, asymmetric)
+            perm = permutations(vcat(partial_perm, item), items, order-1, asymmetric)
             append!(perms, perm)
         end
         return perms
     end
 end
-
