@@ -89,7 +89,17 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::multiRISE, method::N
         nodal_stat = Dict{Tuple,Array{Real,1}}()
 
         for p = 1:inter_order
-                nodal_keys = permutations([1:num_spins]...,p)
+                nodal_keys = Array{Tuple{},1}()
+                neighbours = [i for i=1:num_spins if i!=current_spin]
+                if p == 1
+                    nodal_keys = [(current_spin,)]
+                else
+                    perm = permutations(neighbours, p - 1)
+                    if length(perm) > 0
+                        nodal_keys = [(current_spin, perm[i]...) for i=1:length(perm)]
+                    end
+                end
+
                 for index = 1:length(nodal_keys)
                     nodal_stat[nodal_keys[index]] =  [ prod(samples[k, 1 + i] for i=nodal_keys[index]) for k=1:num_conf]
                 end
@@ -97,12 +107,12 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::multiRISE, method::N
 
         m = Model(solver = method.solver)
 
-        @variable(m, x[keys(nodal_keys)])
-        @variable(m, z[keys(nodal_keys)])
+        @variable(m, x[keys(nodal_stat)])
+        @variable(m, z[keys(nodal_stat)])
 
         @NLobjective(m, Min,
             sum((samples[k,1]/num_samples)*exp(-sum(x[inter]*stat[k] for (inter,stat) = nodal_stat)) for k=1:num_conf) +
-            lambda*sum(z[inter] for inter = keys(nodal_stat) if length(inter)!=1)
+            lambda*sum(z[inter] for inter = keys(nodal_stat) if length(inter)>1)
         )
 
         for inter in keys(nodal_stat)
@@ -112,7 +122,12 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::multiRISE, method::N
 
         status = solve(m)
         @assert status == :Optimal
-        reconstruction = merge(reconstruction,getvalue(x))
+
+
+        nodal_reconstruction = getvalue(x)
+        for inter = keys(nodal_stat)
+            reconstruction[inter] = deepcopy(nodal_reconstruction[inter])
+        end
     end
     #if formulation.symmetrization
     #    reconstruction = 0.5*(reconstruction + transpose(reconstruction))
