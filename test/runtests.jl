@@ -11,7 +11,11 @@ include("common.jl")
         gm2 = FactorGraph(matrix)
         for key in keys(gm)
             @test isapprox(gm[key], gm2[key])
-            @test isapprox(gm[key], matrix[key...])
+            if length(key) == 1
+                @test isapprox(gm[key], matrix[key..., key...])
+            else
+                @test isapprox(gm[key], matrix[key...])
+            end
         end
     end
 end
@@ -22,6 +26,7 @@ end
         srand(0) # fix random number generator
         samples = sample(gm, gibbs_test_samples)
         base_samples = readcsv("data/$(name)_samples.csv")
+        #println(name)
         #println(base_samples)
         #println(samples)
         #println(abs.(base_samples-samples))
