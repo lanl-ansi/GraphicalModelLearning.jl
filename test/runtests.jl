@@ -115,6 +115,37 @@ srand(0) # fix random number generator
 end
 
 
+@testset "inverse multi-body formulations" begin
+
+    for (name, gm) in gms
+        samples = readcsv("data/$(name)_samples.csv")
+        srand(0) # fix random number generator
+        learned_ising = learn(samples, RISE(0.2, false))
+        learned_two_body = learn(samples, multiRISE(0.2, false, 2))
+
+        learned_ising_dict = convert(Dict, learned_ising)
+        #println(learned_ising_dict)
+        #println(learned_two_body)
+
+        @test length(learned_ising_dict) == length(learned_two_body)
+        for (key, value) in learned_ising_dict
+            @test isapprox(learned_two_body[key], value)
+        end
+    end
+
+    samples = readcsv("data/mvt_samples.csv")
+
+    rand(0) # fix random number generator
+    learned_ising = learn(samples, RISE(0.2, false), NLP(IpoptSolver(print_level=0)))
+    learned_two_body = learn(samples, multiRISE(0.2, false, 2), NLP(IpoptSolver(print_level=0)))
+
+    learned_ising_dict = convert(Dict, learned_ising)
+    @test length(learned_ising_dict) == length(learned_two_body)
+    for (key, value) in learned_ising_dict
+        @test isapprox(learned_two_body[key], value)
+    end
+end
+
 
 srand(0) # fix random number generator
 @testset "docs example" begin
@@ -125,3 +156,4 @@ srand(0) # fix random number generator
     err = abs.(convert(Array{Float64,2}, model) - learned)
     @test maximum(err) <= 0.01
 end
+

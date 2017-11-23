@@ -139,6 +139,34 @@ function Base.convert{T <: Real}(::Type{Array{T,2}}, gm::FactorGraph{T})
 end
 
 
+Base.convert{T <: Real}(::Type{Dict}, m::Array{T,2}) = convert(Dict{Tuple,T}, m)
+function Base.convert{T <: Real}(::Type{Dict{Tuple,T}}, m::Array{T,2})
+    @assert size(m,1) == size(m,2) #check matrix is square
+
+    varible_count = size(m,1)
+
+    terms = Dict{Tuple,T}()
+
+    for key in permutations(1:varible_count, 1)
+        weight = m[key..., key...]
+        if !isapprox(weight, 0.0)
+            terms[key] = weight
+        end
+    end
+
+    for key in permutations(1:varible_count, 2, asymmetric=true)
+        if key[1] != key[2]
+            weight = m[key...]
+            if !isapprox(weight, 0.0)
+                terms[key] = weight
+            end
+        end
+    end
+
+    return terms
+end
+
+
 
 permutations(items, order::Int; asymmetric::Bool = false) = sort(permutations([], items, order, asymmetric))
 
