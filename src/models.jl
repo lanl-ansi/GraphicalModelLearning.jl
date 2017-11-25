@@ -15,6 +15,8 @@ end
 FactorGraph{T <: Real}(order::Int, varible_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}) = FactorGraph{T}(order, varible_count, alphabet, terms, Nullable{Vector{String}}())
 FactorGraph{T <: Real}(matrix::Array{T,2}) = convert(FactorGraph{T}, matrix)
 FactorGraph{T <: Real}(dict::Dict{Tuple,T}) = convert(FactorGraph{T}, dict)
+FactorGraph(list::Array{Any,1}) = convert(FactorGraph, list)
+
 
 function check_model_data{T <: Real}(order::Int, varible_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}, variable_names::Nullable{Vector{String}})
     if !in(alphabet, alphabets)
@@ -79,7 +81,6 @@ Base.length(gm::FactorGraph) = length(gm.terms)
 
 Base.getindex(gm::FactorGraph, i) = gm.terms[i]
 Base.keys(gm::FactorGraph) = keys(gm.terms)
-
 
 function diag_keys(gm::FactorGraph)
     dkeys = Tuple[]
@@ -176,6 +177,30 @@ function Base.convert{T <: Real}(::Type{Dict{Tuple,T}}, m::Array{T,2})
     end
 
     return terms
+end
+
+
+function Base.convert(::Type{FactorGraph}, list::Array{Any,1})
+    info("assuming spin alphabet")
+    alphabet = :spin
+
+    max_variable = 0
+    max_order = 0
+    terms = Dict{Tuple,Float64}()
+
+    for item in list
+        term = item["term"]
+        weight = item["weight"]
+        terms[tuple(term...)] = weight
+
+        @assert minimum(term) > 0
+        max_order = max(max_order, length(term))
+        max_variable = max(max_variable, maximum(term))
+    end
+
+    info("dectected $(max_variable) variables with order $(max_order)")
+
+    return FactorGraph(max_order, max_variable, alphabet, terms)
 end
 
 
