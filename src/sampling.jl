@@ -30,7 +30,8 @@ function weigh_proba{T <: Real}(int_representation::Int, adj::Array{T,2}, prior:
 end
 
 
-function sample_generation{T <: Real}(gm::FactorGraph{T}, samples_per_bin::Integer, bins::Int)
+# assumes second order
+function sample_generation_ising{T <: Real}(gm::FactorGraph{T}, samples_per_bin::Integer, bins::Int)
     @assert bins >= 1
 
     spin_number   = gm.varible_count
@@ -43,7 +44,37 @@ function sample_generation{T <: Real}(gm::FactorGraph{T}, samples_per_bin::Integ
     assignment_tmp = [0 for i in 1:spin_number] # pre allocate assignment memory
     weights = [weigh_proba(i, adjacency_matrix, prior_vector, assignment_tmp) for i in (0:config_number-1)]
 
-    items = [i for i in 0:(config_number-1)]
+    raw_sample = StatsBase.sample(items, StatsBase.Weights(weights), samples_per_bin*bins, ordered=false)
+    raw_sample_bins = reshape(raw_sample, bins, samples_per_bin)
+
+    spin_samples = []
+    for b in 1:bins
+        raw_binning = countmap(raw_sample_bins[b,:])
+        spin_sample = [ vcat(raw_binning[i], int_to_spin(i, spin_number)) for i in keys(raw_binning)]
+        push!(spin_samples, hcat(spin_sample...)')
+    end
+    return spin_samples
+end
+
+
+function weigh_proba{T <: Real}(int_representation::Int, gm::FactorGraph{T}, spins::Array{Int,1})
+    digits!(spins, int_representation, 2)
+    spins .= bool_to_spin.(spins)
+    evaluation = sum( weight*prod(spins[i] for i in term) for (term, weight) in gm) 
+    return exp(evaluation)
+end
+
+function sample_generation{T <: Real}(gm::FactorGraph{T}, samples_per_bin::Integer, bins::Int)
+    @assert bins >= 1
+    #info("use general sample model")
+
+    spin_number   = gm.varible_count
+    config_number = 2^spin_number
+
+    items   = [i for i in 0:(config_number-1)]
+    assignment_tmp = [0 for i in 1:spin_number] # pre allocate assignment memory
+    weights = [weigh_proba(i, gm, assignment_tmp) for i in (0:config_number-1)]
+
     raw_sample = StatsBase.sample(items, StatsBase.Weights(weights), samples_per_bin*bins, ordered=false)
     raw_sample_bins = reshape(raw_sample, bins, samples_per_bin)
 
@@ -61,14 +92,15 @@ sample{T <: Real}(gm::FactorGraph{T}, number_sample::Integer, replicates::Intege
 
 
 function sample{T <: Real}(gm::FactorGraph{T}, number_sample::Integer, replicates::Integer, sampler::Gibbs)
-    if gm.order != 2
-        error("sampling is only supported for FactorGraphs of order 2, given order $(gm.order)")
-    end
     if gm.alphabet != :spin
         error("sampling is only supported for spin FactorGraphs, given alphabet $(gm.alphabet)")
     end
 
-    samples = sample_generation(gm, number_sample, replicates)
+    if gm.order <= 2
+        samples = sample_generation_ising(gm, number_sample, replicates)
+    else
+        samples = sample_generation(gm, number_sample, replicates)
+    end
 
     return samples
 end

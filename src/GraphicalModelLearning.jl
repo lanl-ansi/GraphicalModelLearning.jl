@@ -146,7 +146,7 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::multiRISE, method::N
         end
     end
 
-    return reconstruction
+    return FactorGraph(inter_order, num_spins, :spin, reconstruction) 
 end
 
 function learn{T <: Real}(samples::Array{T,2}, formulation::RISE, method::NLP)

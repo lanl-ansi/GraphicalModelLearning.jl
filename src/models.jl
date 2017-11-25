@@ -1,6 +1,6 @@
 # data structures graphical models
 
-export FactorGraph
+export FactorGraph, jsondata
 
 alphabets = [:spin, :boolean, :integer, :integer_pos, :real, :real_pos]
 
@@ -14,6 +14,9 @@ type FactorGraph{T <: Real}
 end
 FactorGraph{T <: Real}(order::Int, varible_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}) = FactorGraph{T}(order, varible_count, alphabet, terms, Nullable{Vector{String}}())
 FactorGraph{T <: Real}(matrix::Array{T,2}) = convert(FactorGraph{T}, matrix)
+FactorGraph{T <: Real}(dict::Dict{Tuple,T}) = convert(FactorGraph{T}, dict)
+FactorGraph(list::Array{Any,1}) = convert(FactorGraph, list)
+
 
 function check_model_data{T <: Real}(order::Int, varible_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}, variable_names::Nullable{Vector{String}})
     if !in(alphabet, alphabets)
@@ -35,11 +38,14 @@ function check_model_data{T <: Real}(order::Int, varible_count::Int, alphabet::S
                 error("a term has an index of $(index) but it should be in the range of 1:$(varible_count)")
                 return false
             end
+            #= 
+            # TODO see when this should be enforced
             if i > 1
                 if k[i-1] > index
                     error("the term $(k) does not have ascending indices")
                 end
             end
+            =#
         end
     end
     return true
@@ -53,10 +59,18 @@ function Base.show(io::IO, gm::FactorGraph)
         println(io, "  ", get(gm.variable_names))
     end
 
-    println(io, "terms: ")
-    for k in sort(collect(keys(gm.terms)))
+    println(io, "terms: $(length(gm.terms))")
+    for k in sort(collect(keys(gm.terms)), by=(x)->(length(x),x))
         println("  ", k, " => ", gm.terms[k])
     end
+end
+
+function jsondata{T <: Real}(gm::FactorGraph{T})
+    data = []
+    for k in sort(collect(keys(gm.terms)), by=(x)->(length(x),x))
+        push!(data, Dict("term" => k, "weight" => gm.terms[k]))
+    end
+    return data
 end
 
 Base.start(gm::FactorGraph) = start(gm.terms)
@@ -67,7 +81,6 @@ Base.length(gm::FactorGraph) = length(gm.terms)
 
 Base.getindex(gm::FactorGraph, i) = gm.terms[i]
 Base.keys(gm::FactorGraph) = keys(gm.terms)
-
 
 function diag_keys(gm::FactorGraph)
     dkeys = Tuple[]
@@ -166,6 +179,48 @@ function Base.convert{T <: Real}(::Type{Dict{Tuple,T}}, m::Array{T,2})
     return terms
 end
 
+
+function Base.convert(::Type{FactorGraph}, list::Array{Any,1})
+    info("assuming spin alphabet")
+    alphabet = :spin
+
+    max_variable = 0
+    max_order = 0
+    terms = Dict{Tuple,Float64}()
+
+    for item in list
+        term = item["term"]
+        weight = item["weight"]
+        terms[tuple(term...)] = weight
+
+        @assert minimum(term) > 0
+        max_order = max(max_order, length(term))
+        max_variable = max(max_variable, maximum(term))
+    end
+
+    info("dectected $(max_variable) variables with order $(max_order)")
+
+    return FactorGraph(max_order, max_variable, alphabet, terms)
+end
+
+
+Base.convert{T <: Real}(::Type{FactorGraph}, dict::Dict{Tuple,T}) = convert(FactorGraph{T}, dict)
+function Base.convert{T <: Real}(::Type{FactorGraph{T}}, dict::Dict{Tuple,T})
+    info("assuming spin alphabet")
+    alphabet = :spin
+
+    max_variable = 0
+    max_order = 0
+    for (term,weight) in dict
+        @assert minimum(term) > 0
+        max_order = max(max_order, length(term))
+        max_variable = max(max_variable, maximum(term))
+    end
+
+    info("dectected $(max_variable) variables with order $(max_order)")
+
+    return FactorGraph(max_order, max_variable, alphabet, dict)
+end
 
 
 permutations(items, order::Int; asymmetric::Bool = false) = sort(permutations([], items, order, asymmetric))
