@@ -66,6 +66,7 @@ end
 
 function sample_generation{T <: Real}(gm::FactorGraph{T}, samples_per_bin::Integer, bins::Int)
     @assert bins >= 1
+    info("use general sample model")
 
     spin_number   = gm.varible_count
     config_number = 2^spin_number

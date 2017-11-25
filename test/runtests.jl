@@ -23,6 +23,17 @@ end
 
 @testset "gibbs sampler" begin
     for (name, gm) in gms
+        gm_tmp = deepcopy(gm)
+        gm_tmp.order = 3
+        srand(0) # fix random number generator
+        samples = sample(gm_tmp, gibbs_test_samples)
+        base_samples = readcsv("data/$(name)_samples.csv")
+        @test isapprox(samples, base_samples)
+    end
+end
+
+@testset "gibbs sampler, 2nd order" begin
+    for (name, gm) in gms
         srand(0) # fix random number generator
         samples = sample(gm, gibbs_test_samples)
         base_samples = readcsv("data/$(name)_samples.csv")
