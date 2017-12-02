@@ -130,23 +130,12 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::multiRISE, method::N
         end
     end
 
+    gm = DiHypergraph(inter_order, num_spins, :spin, reconstruction) 
     if formulation.symmetrization
-        reconstruction_list = Dict{Tuple,Vector{Real}}()
-        for (k,v) in reconstruction
-            key = tuple(sort([i for i in k])...)
-            if !haskey(reconstruction_list, key)
-                reconstruction_list[key] = Vector{Real}()
-            end
-            push!(reconstruction_list[key], v)
-        end
-
-        reconstruction = Dict{Tuple,Real}()
-        for (k,v) in reconstruction_list
-            reconstruction[k] = mean(v)
-        end
+        return FactorGraph(gm)
+    else
+        return gm
     end
-
-    return FactorGraph(inter_order, num_spins, :spin, reconstruction) 
 end
 
 function learn{T <: Real}(samples::Array{T,2}, formulation::RISE, method::NLP)
