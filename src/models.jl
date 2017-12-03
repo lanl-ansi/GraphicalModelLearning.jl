@@ -1,6 +1,6 @@
 # data structures graphical models
 
-export FactorGraph, jsondata
+export DiHypergraph, FactorGraph, jsondata
 
 alphabets = [:spin, :boolean, :integer, :integer_pos, :real, :real_pos]
 

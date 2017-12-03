@@ -4,7 +4,7 @@ using Base.Test
 
 include("common.jl")
 
-@testset "factor graphs" begin
+@testset "graphical models" begin
     for (name, gm) in gms
         matrix = convert(Array{Float64,2}, gm)
         gm2 = FactorGraph(matrix)
@@ -15,6 +15,16 @@ include("common.jl")
             else
                 @test isapprox(gm[key], matrix[key...])
             end
+        end
+    end
+
+    for (name, gm) in gms
+        matrix = convert(Array{Float64,2}, gm)
+        gm2 = DiHypergraph(matrix)
+        gm3 = FactorGraph(gm2)
+        matrix2 = convert(Array{Float64,2}, gm3)
+        for (i,v) in enumerate(matrix)
+            @test isapprox(matrix2[i], v)
         end
     end
 end
