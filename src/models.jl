@@ -177,7 +177,26 @@ function Base.convert{T <: Real}(::Type{DiHypergraph{T}}, m::Array{T,2})
     return DiHypergraph(2, varible_count, alphabet, terms)
 end
 
-Base.convert{T <: Real}(::Type{Array{T,2}}, gm::FactorGraph{T}) = convert(Array{T,2}, convert(DiHypergraph{T}, gm))
+
+function Base.convert{T <: Real}(::Type{Array{T,2}}, gm::FactorGraph{T})
+    if gm.order != 2
+        error("cannot convert a FactorGraph of order $(gm.order) to a matrix")
+    end
+
+    matrix = zeros(gm.varible_count, gm.varible_count)
+    for (k,v) in gm
+        if length(k) == 1
+            matrix[k..., k...] = v
+        else
+            matrix[k...] = v
+            r = reverse(k)
+            matrix[r...] = v
+        end
+    end
+
+    return matrix
+end
+
 function Base.convert{T <: Real}(::Type{Array{T,2}}, gm::DiHypergraph{T})
     if gm.order != 2
         error("cannot convert a DiHypergraph of order $(gm.order) to a matrix")
@@ -189,8 +208,6 @@ function Base.convert{T <: Real}(::Type{Array{T,2}}, gm::DiHypergraph{T})
             matrix[k..., k...] = v
         else
             matrix[k...] = v
-            r = reverse(k)
-            matrix[r...] = v
         end
     end
 

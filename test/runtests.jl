@@ -4,7 +4,6 @@ using Base.Test
 
 include("common.jl")
 
-#=
 @testset "factor graphs" begin
     for (name, gm) in gms
         matrix = convert(Array{Float64,2}, gm)
@@ -124,7 +123,7 @@ srand(0) # fix random number generator
         end
     end
 end
-=#
+
 
 @testset "inverse multi-body formulations" begin
 
