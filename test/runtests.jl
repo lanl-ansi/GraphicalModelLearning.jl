@@ -162,7 +162,7 @@ end
         srand(0) # fix random number generator
         samples = sample(gm_tmp, 10000)
 
-        learned_gm = learn(samples, multiRISE(0.0, false, 4))
+        learned_gm = learn(samples, multiRISE(0.0, true, 4))
 
         for (key, value) in gm_tmp
             #println(learned_gm[key], value)
@@ -170,12 +170,12 @@ end
         end
 
         samples = sample(learned_gm, 10000)
-        learned_gm2 = learn(samples, multiRISE(0.0, false, 4))
+        learned_gm2 = learn(samples, multiRISE(0.0, true, 4))
 
         for (key, value) in gm_tmp
             #println(learned_gm2[key], " ", value)
             # this is a bug, the learned_gm2 value should not be twice as large
-            @test isapprox(learned_gm2[key]/2.0, value, atol = 0.15)
+            @test isapprox(learned_gm2[key], value, atol = 0.15)
         end
 
     end
