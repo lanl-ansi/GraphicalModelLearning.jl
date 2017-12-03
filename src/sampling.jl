@@ -31,7 +31,7 @@ end
 
 
 # assumes second order
-function sample_generation_ising{T <: Real}(gm::FactorGraph{T}, samples_per_bin::Integer, bins::Int)
+function sample_generation_ising{T <: Real}(gm::GraphicalModel{T}, samples_per_bin::Integer, bins::Int)
     @assert bins >= 1
 
     spin_number   = gm.varible_count
@@ -57,14 +57,14 @@ function sample_generation_ising{T <: Real}(gm::FactorGraph{T}, samples_per_bin:
 end
 
 
-function weigh_proba{T <: Real}(int_representation::Int, gm::FactorGraph{T}, spins::Array{Int,1})
+function weigh_proba{T <: Real}(int_representation::Int, gm::GraphicalModel{T}, spins::Array{Int,1})
     digits!(spins, int_representation, 2)
     spins .= bool_to_spin.(spins)
     evaluation = sum( weight*prod(spins[i] for i in term) for (term, weight) in gm) 
     return exp(evaluation)
 end
 
-function sample_generation{T <: Real}(gm::FactorGraph{T}, samples_per_bin::Integer, bins::Int)
+function sample_generation{T <: Real}(gm::GraphicalModel{T}, samples_per_bin::Integer, bins::Int)
     @assert bins >= 1
     #info("use general sample model")
 
@@ -87,13 +87,13 @@ function sample_generation{T <: Real}(gm::FactorGraph{T}, samples_per_bin::Integ
     return spin_samples
 end
 
-sample{T <: Real}(gm::FactorGraph{T}, number_sample::Integer) = sample(gm, number_sample, 1, Gibbs())[1]
-sample{T <: Real}(gm::FactorGraph{T}, number_sample::Integer, replicates::Integer) = sample(gm, number_sample, replicates, Gibbs())
+sample{T <: Real}(gm::GraphicalModel{T}, number_sample::Integer) = sample(gm, number_sample, 1, Gibbs())[1]
+sample{T <: Real}(gm::GraphicalModel{T}, number_sample::Integer, replicates::Integer) = sample(gm, number_sample, replicates, Gibbs())
 
 
-function sample{T <: Real}(gm::FactorGraph{T}, number_sample::Integer, replicates::Integer, sampler::Gibbs)
+function sample{T <: Real}(gm::GraphicalModel{T}, number_sample::Integer, replicates::Integer, sampler::Gibbs)
     if gm.alphabet != :spin
-        error("sampling is only supported for spin FactorGraphs, given alphabet $(gm.alphabet)")
+        error("sampling is only supported for spin GraphicalModels, given alphabet $(gm.alphabet)")
     end
 
     if gm.order <= 2

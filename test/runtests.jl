@@ -4,8 +4,7 @@ using Base.Test
 
 include("common.jl")
 
-#=
-@testset "factor graphs" begin
+@testset "graphical models" begin
     for (name, gm) in gms
         matrix = convert(Array{Float64,2}, gm)
         gm2 = FactorGraph(matrix)
@@ -16,6 +15,16 @@ include("common.jl")
             else
                 @test isapprox(gm[key], matrix[key...])
             end
+        end
+    end
+
+    for (name, gm) in gms
+        matrix = convert(Array{Float64,2}, gm)
+        gm2 = DiHypergraph(matrix)
+        gm3 = FactorGraph(gm2)
+        matrix2 = convert(Array{Float64,2}, gm3)
+        for (i,v) in enumerate(matrix)
+            @test isapprox(matrix2[i], v)
         end
     end
 end
@@ -124,7 +133,7 @@ srand(0) # fix random number generator
         end
     end
 end
-=#
+
 
 @testset "inverse multi-body formulations" begin
 
@@ -163,7 +172,7 @@ end
         srand(0) # fix random number generator
         samples = sample(gm_tmp, 10000)
 
-        learned_gm = learn(samples, multiRISE(0.0, false, 4))
+        learned_gm = learn(samples, multiRISE(0.0, true, 4))
 
         for (key, value) in gm_tmp
             #println(learned_gm[key], value)
@@ -171,12 +180,12 @@ end
         end
 
         samples = sample(learned_gm, 10000)
-        learned_gm2 = learn(samples, multiRISE(0.0, false, 4))
+        learned_gm2 = learn(samples, multiRISE(0.0, true, 4))
 
         for (key, value) in gm_tmp
             #println(learned_gm2[key], " ", value)
             # this is a bug, the learned_gm2 value should not be twice as large
-            @test isapprox(learned_gm2[key]/2.0, value, atol = 0.15)
+            @test isapprox(learned_gm2[key], value, atol = 0.15)
         end
 
     end
