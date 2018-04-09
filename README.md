@@ -25,7 +25,7 @@ Note that the first invocation of `learn` will be slow as the dependent librarie
 
 ## Reference
 
-If you find GraphicalModelLearning useful in your work, we kindly request that you cite the following publication:
+If you find GraphicalModelLearning useful in your work, we kindly request that you cite the following publications:
 ```
 @article{Lokhove1700791,
     author = {Lokhov, Andrey Y. and Vuffray, Marc and Misra, Sidhant and Chertkov, Michael},
@@ -36,17 +36,16 @@ If you find GraphicalModelLearning useful in your work, we kindly request that y
     doi = {10.1126/sciadv.1700791},
     URL = {http://advances.sciencemag.org/content/4/3/e1700791}
 }
-
+```
+```
 @incollection{NIPS2016_6375,
     author = {Vuffray, Marc and Misra, Sidhant and Lokhov, Andrey Y. and Chertkov, Michael},
     title = {Interaction Screening: Efficient and Sample-Optimal Learning of Ising Models},
     booktitle = {Advances in Neural Information Processing Systems 29},
-    pages = {2595--2603},
-    year = {2016},
+    year = {2016}, pages = {2595--2603},
     publisher = {Curran Associates, Inc.},
     url = {http://papers.nips.cc/paper/6375-interaction-screening-efficient-and-sample-optimal-learning-of-ising-models.pdf}
 }
-
 ```
 
 
