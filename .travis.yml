@@ -1,0 +1,22 @@
+language: julia
+os:
+  - linux
+#  - osx
+julia:
+  - 0.6
+  - nightly
+matrix:
+  allow_failures:
+    - julia: nightly
+cache:
+ directories:
+   - /home/travis/.julia
+
+script:
+  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
+  - julia -e 'Pkg.clone(pwd())'
+  - julia -e 'Pkg.test("GraphicalModelLearning", coverage=true)'
+
+after_success:
+  - julia -e  'using Coverage; cd(Pkg.dir("GraphicalModelLearning")); LCOV.writefile("lcov.info", process_folder(".")); run(pipeline(`curl -s https://codecov.io/bash`, `bash`))'
+#  - julia -e 'cd(Pkg.dir("GraphicalModelLearning")); include(joinpath("docs", "make.jl"))'
