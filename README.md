@@ -1,4 +1,10 @@
 # GraphicalModelLearning.jl
+
+Dev:
+[![Build Status](https://travis-ci.org/lanl-ansi/GraphicalModelLearning.jl.svg?branch=master)](https://travis-ci.org/lanl-ansi/GraphicalModelLearning.jl)
+[![codecov](https://codecov.io/gh/lanl-ansi/GraphicalModelLearning.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/lanl-ansi/GraphicalModelLearning.jl)
+[![](https://img.shields.io/badge/docs-latest-blue.svg)](https://lanl-ansi.github.io/GraphicalModelLearning.jl/latest)
+
 Algorithms for Learning Graphical Models
 
 ## Installation
