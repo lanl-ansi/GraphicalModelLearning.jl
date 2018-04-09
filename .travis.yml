@@ -1,7 +1,7 @@
 language: julia
 os:
   - linux
-#  - osx
+  - osx
 julia:
   - 0.6
   - nightly
@@ -29,4 +29,4 @@ script:
 
 after_success:
   - julia -e  'using Coverage; cd(Pkg.dir("GraphicalModelLearning")); LCOV.writefile("lcov.info", process_folder(".")); run(pipeline(`curl -s https://codecov.io/bash`, `bash`))'
-#  - julia -e 'cd(Pkg.dir("GraphicalModelLearning")); include(joinpath("docs", "make.jl"))'
+  - julia -e 'cd(Pkg.dir("GraphicalModelLearning")); include(joinpath("docs", "make.jl"))'
