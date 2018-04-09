@@ -4,7 +4,8 @@ using Base.Test
 
 include("common.jl")
 
-#=
+@testset "GraphicalModelLearning" begin
+
 @testset "factor graphs" begin
     for (name, gm) in gms
         matrix = convert(Array{Float64,2}, gm)
@@ -27,6 +28,7 @@ end
         gm_tmp.order = 3
         srand(0) # fix random number generator
         samples = sample(gm_tmp, gibbs_test_samples)
+        #base_samples = readcsv("data/$(name)_samples.csv", Int64)
         base_samples = readcsv("data/$(name)_samples.csv")
         @test isapprox(samples, base_samples)
     end
@@ -95,12 +97,6 @@ end
 end
 
 
-type AccuracyTest
-   formulation::GMLFormulation
-   samples::Int
-   threshold::Float64
-end
-
 accuracy_tests = [
     AccuracyTest(RISE(),     1000, 0.15)
     AccuracyTest(logRISE(),  1000, 0.15)
@@ -124,7 +120,7 @@ srand(0) # fix random number generator
         end
     end
 end
-=#
+
 
 @testset "inverse multi-body formulations" begin
 
@@ -194,3 +190,5 @@ srand(0) # fix random number generator
     @test maximum(err) <= 0.01
 end
 
+
+end

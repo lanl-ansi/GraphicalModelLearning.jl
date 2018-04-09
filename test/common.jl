@@ -30,3 +30,9 @@ gms = Dict(
         0.3 0.3 0.3 0.0
     ])
 )
+
+type AccuracyTest
+   formulation::GMLFormulation
+   samples::Int
+   threshold::Float64
+end
