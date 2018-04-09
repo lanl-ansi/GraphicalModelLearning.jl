@@ -11,7 +11,9 @@ matrix:
 cache:
  directories:
    - /home/travis/.julia
-
+addons:
+  apt_packages:
+    - gfortran
 script:
   - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
   - julia -e 'Pkg.clone(pwd())'
