@@ -14,6 +14,14 @@ cache:
 addons:
   apt_packages:
     - gfortran
+
+before_install:
+    # don't keep an old version of the code in the cache
+  - julia -e 'if "GraphicalModelLearning" in keys(Pkg.installed()) Pkg.rm("GraphicalModelLearning"); Pkg.rm("GraphicalModelLearning") end'
+  - julia -e 'Pkg.update()' #make sure we get the latest version of METADATA
+  - julia -e 'if !("Coverage" in keys(Pkg.installed())) Pkg.add("Coverage") end'
+  - julia -e 'if !("Documenter" in keys(Pkg.installed())) Pkg.add("Documenter") end'
+
 script:
   - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
   - julia -e 'Pkg.clone(pwd())'
