@@ -7,10 +7,11 @@ Dev:
 
 Algorithms for Learning Graphical Models
 
+
 ## Installation
 In julia run, 
 
-`Pkg.clone("git@github.com:lanl-ansi/GraphicalModelLearning.jl.git")`
+`Pkg.clone("https://github.com/lanl-ansi/GraphicalModelLearning.jl.git")`
 
 
 ## Quick Start
