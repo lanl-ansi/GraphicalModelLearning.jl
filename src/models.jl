@@ -4,26 +4,28 @@ export FactorGraph, jsondata
 
 alphabets = [:spin, :boolean, :integer, :integer_pos, :real, :real_pos]
 
-type FactorGraph{T <: Real}
+
+mutable struct FactorGraph{T <: Real}
     order::Int
     varible_count::Int
     alphabet::Symbol
     terms::Dict{Tuple,T} # TODO, would be nice to have a stronger tuple type here
-    variable_names::Nullable{Vector{String}}
-    FactorGraph(a,b,c,d,e) = check_model_data(a,b,c,d,e) ? new(a,b,c,d,e) : error("generic init problem")
+    variable_names::Union{Vector{String}, Nothing}
+    #FactorGraph(a,b,c,d,e) = check_model_data(a,b,c,d,e) ? new(a,b,c,d,e) : error("generic init problem")
 end
-FactorGraph{T <: Real}(order::Int, varible_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}) = FactorGraph{T}(order, varible_count, alphabet, terms, Nullable{Vector{String}}())
-FactorGraph{T <: Real}(matrix::Array{T,2}) = convert(FactorGraph{T}, matrix)
-FactorGraph{T <: Real}(dict::Dict{Tuple,T}) = convert(FactorGraph{T}, dict)
+
+FactorGraph(order::Int, varible_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}) where T <: Real = FactorGraph{T}(order, varible_count, alphabet, terms, nothing)
+FactorGraph(matrix::Array{T,2}) where T <: Real = convert(FactorGraph{T}, matrix)
+FactorGraph(dict::Dict{Tuple,T}) where T <: Real = convert(FactorGraph{T}, dict)
 FactorGraph(list::Array{Any,1}) = convert(FactorGraph, list)
 
 
-function check_model_data{T <: Real}(order::Int, varible_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}, variable_names::Nullable{Vector{String}})
+function check_model_data(order::Int, varible_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}, variable_names::Union{Vector{String}, Nothing}) where T <: Real
     if !in(alphabet, alphabets)
         error("alphabet $(alphabet) is not supported")
         return false
     end
-    if !isnull(variable_names) && length(variable_names) != varible_count
+    if variable_names != nothing && length(variable_names) != varible_count
         error("expected $(varible_count) but only given $(length(variable_names))")
         return false
     end
@@ -54,7 +56,7 @@ end
 function Base.show(io::IO, gm::FactorGraph)
     println(io, "alphabet: ", gm.alphabet)
     println(io, "vars: ", gm.varible_count)
-    if !isnull(gm.variable_names)
+    if gm.variable_names != nothing
         println(io, "variable names: ")
         println(io, "  ", get(gm.variable_names))
     end
@@ -65,7 +67,7 @@ function Base.show(io::IO, gm::FactorGraph)
     end
 end
 
-function jsondata{T <: Real}(gm::FactorGraph{T})
+function jsondata(gm::FactorGraph{T}) where T <: Real
     data = []
     for k in sort(collect(keys(gm.terms)), by=(x)->(length(x),x))
         push!(data, Dict("term" => k, "weight" => gm.terms[k]))
@@ -73,9 +75,11 @@ function jsondata{T <: Real}(gm::FactorGraph{T})
     return data
 end
 
+
 Base.start(gm::FactorGraph) = start(gm.terms)
 Base.next(gm::FactorGraph, state) = next(gm.terms, state)
 Base.done(gm::FactorGraph, state) = done(gm.terms, state)
+
 
 Base.length(gm::FactorGraph) = length(gm.terms)
 
@@ -95,15 +99,15 @@ end
 
 diag_key(gm::FactorGraph, i::Int) = tuple(fill(i, gm.order)...)
 
-#Base.diag{T <: Real}(gm::FactorGraph{T}) = [ get(gm.terms, diag_key(gm, i), zero(T)) for i in 1:gm.varible_count ]
+#Base.diag(gm::FactorGraph{T}) where T <: Real = [ get(gm.terms, diag_key(gm, i), zero(T)) for i in 1:gm.varible_count ]
 
-Base.DataFmt.writecsv{T <: Real}(io, gm::FactorGraph{T}, args...; kwargs...) = writecsv(io, convert(Array{T,2}, gm), args...; kwargs...)
+#Base.DataFmt.writecsv(io, gm::FactorGraph{T}, args...; kwargs...) where T <: Real = writecsv(io, convert(Array{T,2}, gm), args...; kwargs...)
 
-Base.convert{T <: Real}(::Type{FactorGraph}, m::Array{T,2}) = convert(FactorGraph{T}, m)
-function Base.convert{T <: Real}(::Type{FactorGraph{T}}, m::Array{T,2})
+Base.convert(::Type{FactorGraph}, m::Array{T,2}) where T <: Real = convert(FactorGraph{T}, m)
+function Base.convert(::Type{FactorGraph{T}}, m::Array{T,2}) where T <: Real
     @assert size(m,1) == size(m,2) #check matrix is square
 
-    info("assuming spin alphabet")
+    @info "assuming spin alphabet"
     alphabet = :spin
     varible_count = size(m,1)
 
@@ -132,7 +136,7 @@ function Base.convert{T <: Real}(::Type{FactorGraph{T}}, m::Array{T,2})
     return FactorGraph(2, varible_count, alphabet, terms)
 end
 
-function Base.convert{T <: Real}(::Type{Array{T,2}}, gm::FactorGraph{T})
+function Base.convert(::Type{Array{T,2}}, gm::FactorGraph{T}) where T <: Real
     if gm.order != 2
         error("cannot convert a FactorGraph of order $(gm.order) to a matrix")
     end
@@ -152,8 +156,8 @@ function Base.convert{T <: Real}(::Type{Array{T,2}}, gm::FactorGraph{T})
 end
 
 
-Base.convert{T <: Real}(::Type{Dict}, m::Array{T,2}) = convert(Dict{Tuple,T}, m)
-function Base.convert{T <: Real}(::Type{Dict{Tuple,T}}, m::Array{T,2})
+Base.convert(::Type{Dict}, m::Array{T,2}) where T <: Real = convert(Dict{Tuple,T}, m)
+function Base.convert(::Type{Dict{Tuple,T}}, m::Array{T,2}) where T <: Real
     @assert size(m,1) == size(m,2) #check matrix is square
 
     varible_count = size(m,1)
@@ -181,7 +185,7 @@ end
 
 
 function Base.convert(::Type{FactorGraph}, list::Array{Any,1})
-    info("assuming spin alphabet")
+    @info "assuming spin alphabet"
     alphabet = :spin
 
     max_variable = 0
@@ -198,15 +202,15 @@ function Base.convert(::Type{FactorGraph}, list::Array{Any,1})
         max_variable = max(max_variable, maximum(term))
     end
 
-    info("dectected $(max_variable) variables with order $(max_order)")
+    @info "dectected $(max_variable) variables with order $(max_order)"
 
     return FactorGraph(max_order, max_variable, alphabet, terms)
 end
 
 
-Base.convert{T <: Real}(::Type{FactorGraph}, dict::Dict{Tuple,T}) = convert(FactorGraph{T}, dict)
-function Base.convert{T <: Real}(::Type{FactorGraph{T}}, dict::Dict{Tuple,T})
-    info("assuming spin alphabet")
+Base.convert(::Type{FactorGraph}, dict::Dict{Tuple,T}) where T <: Real = convert(FactorGraph{T}, dict)
+function Base.convert(::Type{FactorGraph{T}}, dict::Dict{Tuple,T}) where T <: Real
+    @info "assuming spin alphabet"
     alphabet = :spin
 
     max_variable = 0
@@ -217,7 +221,7 @@ function Base.convert{T <: Real}(::Type{FactorGraph{T}}, dict::Dict{Tuple,T})
         max_variable = max(max_variable, maximum(term))
     end
 
-    info("dectected $(max_variable) variables with order $(max_order)")
+    @info "dectected $(max_variable) variables with order $(max_order)"
 
     return FactorGraph(max_order, max_variable, alphabet, dict)
 end
