@@ -76,12 +76,17 @@ function jsondata(gm::FactorGraph{T}) where T <: Real
 end
 
 
-Base.start(gm::FactorGraph) = start(gm.terms)
-Base.next(gm::FactorGraph, state) = next(gm.terms, state)
-Base.done(gm::FactorGraph, state) = done(gm.terms, state)
+if VERSION < v"0.7.0-"
+    Base.start(gm::FactorGraph) = start(gm.terms)
+    Base.next(gm::FactorGraph, state) = next(gm.terms, state)
+    Base.done(gm::FactorGraph, state) = done(gm.terms, state)
+else
+    Base.iterate(gm::FactorGraph, kwargs...) = Base.iterate(gm.terms, kwargs...)
+end
 
 
 Base.length(gm::FactorGraph) = length(gm.terms)
+#Base.size(gm::FactorGraph, a...) = size(gm.terms, a...)
 
 Base.getindex(gm::FactorGraph, i) = gm.terms[i]
 Base.keys(gm::FactorGraph) = keys(gm.terms)
