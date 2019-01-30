@@ -18,7 +18,7 @@ for (gm_name, model) in gms
 end
 
 for (gm_name, model) in gms
-    samples = readcsv("$(gm_name)_samples.csv")
+    samples = readdlm("$(gm_name)_samples.csv", ",")
     for (form_name, formulation) in formulations
         Random.seed!(0) # fix random number generator
         learned_gm = learn(samples, formulation)
