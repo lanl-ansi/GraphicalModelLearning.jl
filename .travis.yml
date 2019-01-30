@@ -12,7 +12,7 @@ matrix:
     - julia: nightly
 cache:
  directories:
-   - /home/travis/.julia GraphicalModelLearning
+   - /home/travis/.julia
 addons:
   apt_packages:
     - gfortran

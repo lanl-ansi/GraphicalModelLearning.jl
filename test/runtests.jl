@@ -1,11 +1,17 @@
 using GraphicalModelLearning
 using Ipopt
 
-using Test
-using Random
+using Compat.Test
+using Compat.Random
 
-import DelimitedFiles: readdlm
-import LinearAlgebra: diag
+if VERSION < v"0.7.0-"
+    seed! = srand
+else
+    seed! = Random.seed!
+end
+
+import Compat.DelimitedFiles: readdlm
+import Compat.LinearAlgebra: diag
 
 include("common.jl")
 
@@ -31,7 +37,7 @@ end
     for (name, gm) in gms
         gm_tmp = deepcopy(gm)
         gm_tmp.order = 3
-        Random.seed!(0) # fix random number generator
+        seed!(0) # fix random number generator
         samples = sample(gm_tmp, gibbs_test_samples)
         #base_samples = readdlm("data/$(name)_samples.csv", ',', Int64)
         base_samples = readdlm("data/$(name)_samples.csv", ',')
@@ -41,7 +47,7 @@ end
 
 @testset "gibbs sampler, 2nd order" begin
     for (name, gm) in gms
-        Random.seed!(0) # fix random number generator
+        seed!(0) # fix random number generator
         samples = sample(gm, gibbs_test_samples)
         base_samples = readdlm("data/$(name)_samples.csv", ',')
         #println(name)
@@ -54,7 +60,7 @@ end
 
 @testset "gibbs sampler with replicates" begin
     for (name, gm) in gms
-        Random.seed!(0) # fix random number generator
+        seed!(0) # fix random number generator
         samples_set = sample(gm, gibbs_test_samples, 3)
         for samples in samples_set
             @test sum(samples[:,1]) == gibbs_test_samples
@@ -69,7 +75,7 @@ end
         @testset "  $(form_name)" begin
             for (name, gm) in gms
                 samples = readdlm("data/$(name)_samples.csv", ',')
-                Random.seed!(0) # fix random number generator
+                seed!(0) # fix random number generator
                 #learned_gm = inverse_ising(samples, method=formulation)
                 learned_gm = learn(samples, formulation)
                 base_learned_gm = readdlm("data/$(name)_$(form_name)_learned.csv", ',')
@@ -82,19 +88,19 @@ end
 
     samples = readdlm("data/mvt_samples.csv", ',')
 
-    Random.seed!(0) # fix random number generator
+    seed!(0) # fix random number generator
     learned_gm_rise = learn(samples, RISE(0.2, false), NLP(IpoptSolver(print_level=0)))
     base_learned_gm = readdlm("data/mvt_RISE_learned.csv", ',')
     #println(abs.(learned_gm_rise - base_learned_gm))
     @test isapprox(learned_gm_rise, base_learned_gm)
 
-    Random.seed!(0) # fix random number generator
+    seed!(0) # fix random number generator
     learned_gm_logrise = learn(samples, logRISE(0.2, false), NLP(IpoptSolver(print_level=0)))
     base_learned_gm = readdlm("data/mvt_logRISE_learned.csv", ',')
     #println(abs.(learned_gm_logrise - base_learned_gm))
     @test isapprox(learned_gm_logrise, base_learned_gm)
 
-    Random.seed!(0) # fix random number generator
+    seed!(0) # fix random number generator
     learned_gm_rple = learn(samples, RPLE(0.2, false), NLP(IpoptSolver(print_level=0)))
     base_learned_gm = readdlm("data/mvt_RPLE_learned.csv", ',')
     #println(abs.(learned_gm_rple - base_learned_gm))
@@ -111,7 +117,7 @@ accuracy_tests = [
     AccuracyTest(RPLE(),    10000, 0.05)
 ]
 
-Random.seed!(0) # fix random number generator
+seed!(0) # fix random number generator
 @testset "learned model accuracy" begin
     for act in accuracy_tests
         @testset "  $(act.formulation) $(act.samples) $(act.threshold)" begin
@@ -131,7 +137,7 @@ end
 
     for (name, gm) in gms
         samples = readdlm("data/$(name)_samples.csv", ',')
-        Random.seed!(0) # fix random number generator
+        seed!(0) # fix random number generator
         learned_ising = learn(samples, RISE(0.2, false))
         learned_two_body = learn(samples, multiRISE(0.2, false, 2))
 
@@ -161,7 +167,7 @@ end
     for (name, gm) in gms
         gm_tmp = deepcopy(gm)
         gm_tmp.order = 4
-        Random.seed!(0) # fix random number generator
+        seed!(0) # fix random number generator
         samples = sample(gm_tmp, 10000)
 
         learned_gm = learn(samples, multiRISE(0.0, false, 4))
@@ -185,7 +191,7 @@ end
 
 
 
-Random.seed!(0) # fix random number generator
+seed!(0) # fix random number generator
 @testset "docs example" begin
     model = FactorGraph([0.0 0.1 0.2; 0.1 0.0 0.3; 0.2 0.3 0.0])
     samples = sample(model, 100000)
