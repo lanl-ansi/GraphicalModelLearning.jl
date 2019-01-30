@@ -1,7 +1,7 @@
 var documenterSearchIndex = {"docs": [
 
 {
-    "location": "index.html#",
+    "location": "#",
     "page": "Home",
     "title": "Home",
     "category": "page",
@@ -9,7 +9,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "index.html#GraphicalModelLearning.jl-Documentation-1",
+    "location": "#GraphicalModelLearning.jl-Documentation-1",
     "page": "Home",
     "title": "GraphicalModelLearning.jl Documentation",
     "category": "section",
@@ -17,7 +17,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "index.html#Overview-1",
+    "location": "#Overview-1",
     "page": "Home",
     "title": "Overview",
     "category": "section",
@@ -25,7 +25,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "index.html#Installation-and-Testing-1",
+    "location": "#Installation-and-Testing-1",
     "page": "Home",
     "title": "Installation and Testing",
     "category": "section",
@@ -33,7 +33,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "library.html#",
+    "location": "library/#",
     "page": "Library",
     "title": "Library",
     "category": "page",
@@ -41,7 +41,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "library.html#GraphicalModelLearning.jl-Library-1",
+    "location": "library/#GraphicalModelLearning.jl-Library-1",
     "page": "Library",
     "title": "GraphicalModelLearning.jl Library",
     "category": "section",
