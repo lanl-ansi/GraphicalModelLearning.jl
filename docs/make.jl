@@ -12,9 +12,5 @@ makedocs(
 )
 
 deploydocs(
-    deps = nothing,
-    make = nothing,
-    target = "build",
     repo = "github.com/lanl-ansi/GraphicalModelLearning.jl.git",
-    julia = "0.6"
 )
