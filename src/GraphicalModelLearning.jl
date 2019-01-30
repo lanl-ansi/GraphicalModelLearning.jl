@@ -1,5 +1,3 @@
-isdefined(Base, :__precompile__) && __precompile__()
-
 module GraphicalModelLearning
 
 export learn, inverse_ising
@@ -11,15 +9,41 @@ using JuMP
 using MathProgBase # for solver type
 using Ipopt
 
-using Compat # used for julia v0.5 abstract types
+import Compat.LinearAlgebra
+import Compat.LinearAlgebra: diag
+import Compat.Statistics: mean
+
+import Compat.Nothing
+import Compat.undef
+import Compat.@info
+
+if VERSION < v"0.7.0-"
+    function Base.digits(value; base=0, pad=0)
+        if base != 0 && pad != 0
+            return digits(value, base, pad)
+        elseif base != 0
+            return digits(value, base)
+        else
+            return digits(value)
+        end
+    end
+
+    function Base.digits!(array, value; base=0)
+        if base != 0
+            digits!(array, value, base)
+        else
+            digits!(array, value)
+        end
+    end
+end
 
 include("models.jl")
 
 include("sampling.jl")
 
-@compat abstract type GMLFormulation end
+abstract type GMLFormulation end
 
-type multiRISE <: GMLFormulation
+mutable struct multiRISE <: GMLFormulation
     regularizer::Real
     symmetrization::Bool
     interaction_order::Integer
@@ -27,28 +51,28 @@ end
 # default values
 multiRISE() = multiRISE(0.4, true, 2)
 
-type RISE <: GMLFormulation
+mutable struct RISE <: GMLFormulation
     regularizer::Real
     symmetrization::Bool
 end
 # default values
 RISE() = RISE(0.4, true)
 
-type RISEA <: GMLFormulation
+mutable struct RISEA <: GMLFormulation
     regularizer::Real
     symmetrization::Bool
 end
 # default values
 RISEA() = RISEA(0.4, true)
 
-type logRISE <: GMLFormulation
+mutable struct logRISE <: GMLFormulation
     regularizer::Real
     symmetrization::Bool
 end
 # default values
 logRISE() = logRISE(0.8, true)
 
-type RPLE <: GMLFormulation
+mutable struct RPLE <: GMLFormulation
     regularizer::Real
     symmetrization::Bool
 end
@@ -56,9 +80,9 @@ end
 RPLE() = RPLE(0.2, true)
 
 
-@compat abstract type GMLMethod end
+abstract type GMLMethod end
 
-type NLP <: GMLMethod
+mutable struct NLP <: GMLMethod
     solver::MathProgBase.AbstractMathProgSolver
 end
 # default values
@@ -66,18 +90,22 @@ NLP() = NLP(IpoptSolver(print_level=0))
 
 
 # default settings
-learn{T <: Real}(samples::Array{T,2}) = learn(samples, RISE(), NLP())
-learn{T <: Real, S <: GMLFormulation}(samples::Array{T,2}, formulation::S) = learn(samples, formulation, NLP())
+learn(samples::Array{T,2}) where T <: Real = learn(samples, RISE(), NLP())
+learn(samples::Array{T,2}, formulation::S) where {T <: Real, S <: GMLFormulation} = learn(samples, formulation, NLP())
 
+if VERSION >= v"0.7.0-"
+    #TODO add better support for Adjoints
+    learn(samples::LinearAlgebra.Adjoint, args...) = learn(copy(samples), args...)
+end
 
-function data_info{T <: Real}(samples::Array{T,2})
+function data_info(samples::Array{T,2}) where T <: Real
     (num_conf, num_row) = size(samples)
     num_spins = num_row - 1
     num_samples = sum(samples[1:num_conf,1])
     return num_conf, num_spins, num_samples
 end
 
-function learn{T <: Real}(samples::Array{T,2}, formulation::multiRISE, method::NLP)
+function learn(samples::Array{T,2}, formulation::multiRISE, method::NLP) where T <: Real
     num_conf, num_spins, num_samples = data_info(samples)
 
     lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
@@ -149,12 +177,12 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::multiRISE, method::N
     return FactorGraph(inter_order, num_spins, :spin, reconstruction) 
 end
 
-function learn{T <: Real}(samples::Array{T,2}, formulation::RISE, method::NLP)
+function learn(samples::Array{T,2}, formulation::RISE, method::NLP) where T <: Real
     num_conf, num_spins, num_samples = data_info(samples)
 
     lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
 
-    reconstruction = Array{Float64}(num_spins, num_spins)
+    reconstruction = Array{Float64}(undef, num_spins, num_spins)
 
     for current_spin = 1:num_spins
         nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
@@ -205,12 +233,12 @@ function grad_risea_obj(g, var, stat, weight)
     end
 end
 
-function learn{T <: Real}(samples::Array{T,2}, formulation::RISEA, method::NLP)
+function learn(samples::Array{T,2}, formulation::RISEA, method::NLP) where T <: Real
     num_conf, num_spins, num_samples = data_info(samples)
 
     lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
 
-    reconstruction = Array{Float64}(num_spins, num_spins)
+    reconstruction = Array{Float64}(undef, num_spins, num_spins)
 
     for current_spin = 1:num_spins
         nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
@@ -259,12 +287,12 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::RISEA, method::NLP)
 end
 
 
-function learn{T <: Real}(samples::Array{T,2}, formulation::logRISE, method::NLP)
+function learn(samples::Array{T,2}, formulation::logRISE, method::NLP) where T <: Real
     num_conf, num_spins, num_samples = data_info(samples)
 
     lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
 
-    reconstruction = Array{Float64}(num_spins, num_spins)
+    reconstruction = Array{Float64}(undef, num_spins, num_spins)
 
     for current_spin = 1:num_spins
         nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
@@ -297,12 +325,12 @@ function learn{T <: Real}(samples::Array{T,2}, formulation::logRISE, method::NLP
 end
 
 
-function learn{T <: Real}(samples::Array{T,2}, formulation::RPLE, method::NLP)
+function learn(samples::Array{T,2}, formulation::RPLE, method::NLP) where T <: Real
     num_conf, num_spins, num_samples = data_info(samples)
 
     lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
 
-    reconstruction = Array{Float64}(num_spins, num_spins)
+    reconstruction = Array{Float64}(undef, num_spins, num_spins)
 
     for current_spin = 1:num_spins
         nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]

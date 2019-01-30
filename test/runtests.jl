@@ -1,6 +1,17 @@
 using GraphicalModelLearning
 using Ipopt
-using Base.Test
+
+using Compat.Test
+using Compat.Random
+
+if VERSION < v"0.7.0-"
+    seed! = srand
+else
+    seed! = Random.seed!
+end
+
+import Compat.DelimitedFiles: readdlm
+import Compat.LinearAlgebra: diag
 
 include("common.jl")
 
@@ -26,19 +37,19 @@ end
     for (name, gm) in gms
         gm_tmp = deepcopy(gm)
         gm_tmp.order = 3
-        srand(0) # fix random number generator
+        seed!(0) # fix random number generator
         samples = sample(gm_tmp, gibbs_test_samples)
-        #base_samples = readcsv("data/$(name)_samples.csv", Int64)
-        base_samples = readcsv("data/$(name)_samples.csv")
+        #base_samples = readdlm("data/$(name)_samples.csv", ',', Int64)
+        base_samples = readdlm("data/$(name)_samples.csv", ',')
         @test isapprox(samples, base_samples)
     end
 end
 
 @testset "gibbs sampler, 2nd order" begin
     for (name, gm) in gms
-        srand(0) # fix random number generator
+        seed!(0) # fix random number generator
         samples = sample(gm, gibbs_test_samples)
-        base_samples = readcsv("data/$(name)_samples.csv")
+        base_samples = readdlm("data/$(name)_samples.csv", ',')
         #println(name)
         #println(base_samples)
         #println(samples)
@@ -49,7 +60,7 @@ end
 
 @testset "gibbs sampler with replicates" begin
     for (name, gm) in gms
-        srand(0) # fix random number generator
+        seed!(0) # fix random number generator
         samples_set = sample(gm, gibbs_test_samples, 3)
         for samples in samples_set
             @test sum(samples[:,1]) == gibbs_test_samples
@@ -63,11 +74,11 @@ end
     for (form_name, formulation) in formulations
         @testset "  $(form_name)" begin
             for (name, gm) in gms
-                samples = readcsv("data/$(name)_samples.csv")
-                srand(0) # fix random number generator
+                samples = readdlm("data/$(name)_samples.csv", ',')
+                seed!(0) # fix random number generator
                 #learned_gm = inverse_ising(samples, method=formulation)
                 learned_gm = learn(samples, formulation)
-                base_learned_gm = readcsv("data/$(name)_$(form_name)_learned.csv")
+                base_learned_gm = readdlm("data/$(name)_$(form_name)_learned.csv", ',')
                 #println(maximum(abs.(learned_gm - base_learned_gm)))
                 @test isapprox(learned_gm, base_learned_gm)
             end
@@ -75,23 +86,23 @@ end
     end
 
 
-    samples = readcsv("data/mvt_samples.csv")
+    samples = readdlm("data/mvt_samples.csv", ',')
 
-    srand(0) # fix random number generator
+    seed!(0) # fix random number generator
     learned_gm_rise = learn(samples, RISE(0.2, false), NLP(IpoptSolver(print_level=0)))
-    base_learned_gm = readcsv("data/mvt_RISE_learned.csv")
+    base_learned_gm = readdlm("data/mvt_RISE_learned.csv", ',')
     #println(abs.(learned_gm_rise - base_learned_gm))
     @test isapprox(learned_gm_rise, base_learned_gm)
 
-    srand(0) # fix random number generator
+    seed!(0) # fix random number generator
     learned_gm_logrise = learn(samples, logRISE(0.2, false), NLP(IpoptSolver(print_level=0)))
-    base_learned_gm = readcsv("data/mvt_logRISE_learned.csv")
+    base_learned_gm = readdlm("data/mvt_logRISE_learned.csv", ',')
     #println(abs.(learned_gm_logrise - base_learned_gm))
     @test isapprox(learned_gm_logrise, base_learned_gm)
 
-    srand(0) # fix random number generator
+    seed!(0) # fix random number generator
     learned_gm_rple = learn(samples, RPLE(0.2, false), NLP(IpoptSolver(print_level=0)))
-    base_learned_gm = readcsv("data/mvt_RPLE_learned.csv")
+    base_learned_gm = readdlm("data/mvt_RPLE_learned.csv", ',')
     #println(abs.(learned_gm_rple - base_learned_gm))
     @test isapprox(learned_gm_rple, base_learned_gm)
 end
@@ -106,7 +117,7 @@ accuracy_tests = [
     AccuracyTest(RPLE(),    10000, 0.05)
 ]
 
-srand(0) # fix random number generator
+seed!(0) # fix random number generator
 @testset "learned model accuracy" begin
     for act in accuracy_tests
         @testset "  $(act.formulation) $(act.samples) $(act.threshold)" begin
@@ -125,8 +136,8 @@ end
 @testset "inverse multi-body formulations" begin
 
     for (name, gm) in gms
-        samples = readcsv("data/$(name)_samples.csv")
-        srand(0) # fix random number generator
+        samples = readdlm("data/$(name)_samples.csv", ',')
+        seed!(0) # fix random number generator
         learned_ising = learn(samples, RISE(0.2, false))
         learned_two_body = learn(samples, multiRISE(0.2, false, 2))
 
@@ -136,11 +147,11 @@ end
 
         @test length(learned_ising_dict) == length(learned_two_body)
         for (key, value) in learned_ising_dict
-            @test isapprox(learned_two_body[key], value)
+            @test isapprox(learned_two_body[key], value, atol=1e-7)
         end
     end
 
-    samples = readcsv("data/mvt_samples.csv")
+    samples = readdlm("data/mvt_samples.csv", ',')
 
     rand(0) # fix random number generator
     learned_ising = learn(samples, RISE(0.2, false), NLP(IpoptSolver(print_level=0)))
@@ -156,7 +167,7 @@ end
     for (name, gm) in gms
         gm_tmp = deepcopy(gm)
         gm_tmp.order = 4
-        srand(0) # fix random number generator
+        seed!(0) # fix random number generator
         samples = sample(gm_tmp, 10000)
 
         learned_gm = learn(samples, multiRISE(0.0, false, 4))
@@ -180,7 +191,7 @@ end
 
 
 
-srand(0) # fix random number generator
+seed!(0) # fix random number generator
 @testset "docs example" begin
     model = FactorGraph([0.0 0.1 0.2; 0.1 0.0 0.3; 0.2 0.3 0.0])
     samples = sample(model, 100000)

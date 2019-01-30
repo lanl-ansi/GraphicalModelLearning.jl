@@ -1,7 +1,8 @@
 julia 0.6
 
 JuMP 0.17 0.19-
+MathProgBase
 Ipopt
 StatsBase
 
-Compat 0.17
+Compat 1.0

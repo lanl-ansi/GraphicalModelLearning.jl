@@ -31,7 +31,7 @@ gms = Dict(
     ])
 )
 
-type AccuracyTest
+mutable struct AccuracyTest
    formulation::GMLFormulation
    samples::Int
    threshold::Float64
