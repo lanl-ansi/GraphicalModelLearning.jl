@@ -9,33 +9,9 @@ using JuMP
 using MathProgBase # for solver type
 using Ipopt
 
-import Compat.LinearAlgebra
-import Compat.LinearAlgebra: diag
-import Compat.Statistics: mean
-
-import Compat.Nothing
-import Compat.undef
-import Compat.@info
-
-if VERSION < v"0.7.0-"
-    function Base.digits(value; base=0, pad=0)
-        if base != 0 && pad != 0
-            return digits(value, base, pad)
-        elseif base != 0
-            return digits(value, base)
-        else
-            return digits(value)
-        end
-    end
-
-    function Base.digits!(array, value; base=0)
-        if base != 0
-            digits!(array, value, base)
-        else
-            digits!(array, value)
-        end
-    end
-end
+import LinearAlgebra
+import LinearAlgebra: diag
+import Statistics: mean
 
 include("models.jl")
 
@@ -93,10 +69,9 @@ NLP() = NLP(IpoptSolver(print_level=0))
 learn(samples::Array{T,2}) where T <: Real = learn(samples, RISE(), NLP())
 learn(samples::Array{T,2}, formulation::S) where {T <: Real, S <: GMLFormulation} = learn(samples, formulation, NLP())
 
-if VERSION >= v"0.7.0-"
-    #TODO add better support for Adjoints
-    learn(samples::LinearAlgebra.Adjoint, args...) = learn(copy(samples), args...)
-end
+#TODO add better support for Adjoints
+learn(samples::LinearAlgebra.Adjoint, args...) = learn(copy(samples), args...)
+
 
 function data_info(samples::Array{T,2}) where T <: Real
     (num_conf, num_row) = size(samples)
