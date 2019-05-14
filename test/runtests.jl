@@ -1,8 +1,8 @@
 using GraphicalModelLearning
 using Ipopt
 
-using Compat.Test
-using Compat.Random
+using Test
+using Random
 
 if VERSION < v"0.7.0-"
     seed! = srand
@@ -10,8 +10,8 @@ else
     seed! = Random.seed!
 end
 
-import Compat.DelimitedFiles: readdlm
-import Compat.LinearAlgebra: diag
+import DelimitedFiles: readdlm
+import LinearAlgebra: diag
 
 include("common.jl")
 

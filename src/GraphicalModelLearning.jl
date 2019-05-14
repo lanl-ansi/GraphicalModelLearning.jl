@@ -9,13 +9,9 @@ using JuMP
 using MathProgBase # for solver type
 using Ipopt
 
-import Compat.LinearAlgebra
-import Compat.LinearAlgebra: diag
-import Compat.Statistics: mean
-
-import Compat.Nothing
-import Compat.undef
-import Compat.@info
+import LinearAlgebra
+import LinearAlgebra: diag
+import Statistics: mean
 
 if VERSION < v"0.7.0-"
     function Base.digits(value; base=0, pad=0)
