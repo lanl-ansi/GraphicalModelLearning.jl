@@ -6,14 +6,12 @@ export GMLFormulation, RISE, logRISE, RPLE, RISEA, multiRISE
 export GMLMethod, NLP
 
 using JuMP
-using MathOptInterface # for solver type
 using Ipopt
 
 import LinearAlgebra
 import LinearAlgebra: diag
 import Statistics: mean
 
-const MOI = MathOptInterface
 
 include("models.jl")
 
@@ -126,7 +124,7 @@ function learn(samples::Array{T,2}, formulation::multiRISE, method::NLP) where T
         end
 
         JuMP.optimize!(model)
-        @assert JuMP.termination_status(model) == MOI.LOCALLY_SOLVED
+        @assert JuMP.termination_status(model) == JuMP.MOI.LOCALLY_SOLVED
 
         nodal_reconstruction = JuMP.value.(x)
         for inter = keys(nodal_stat)
@@ -179,7 +177,7 @@ function learn(samples::Array{T,2}, formulation::RISE, method::NLP) where T <: R
         end
 
         JuMP.optimize!(model)
-        @assert JuMP.termination_status(model) == MOI.LOCALLY_SOLVED
+        @assert JuMP.termination_status(model) == JuMP.MOI.LOCALLY_SOLVED
         reconstruction[current_spin,1:num_spins] = deepcopy(JuMP.value.(x))
     end
 
@@ -250,7 +248,7 @@ function learn(samples::Array{T,2}, formulation::RISEA, method::NLP) where T <: 
         end
 
         JuMP.optimize!(model)
-        @assert JuMP.termination_status(model) == MOI.LOCALLY_SOLVED
+        @assert JuMP.termination_status(model) == JuMP.MOI.LOCALLY_SOLVED
         reconstruction[current_spin,1:num_spins] = deepcopy(JuMP.value.(x))
     end
 
@@ -288,7 +286,7 @@ function learn(samples::Array{T,2}, formulation::logRISE, method::NLP) where T <
         end
 
         JuMP.optimize!(model)
-        @assert JuMP.termination_status(model) == MOI.LOCALLY_SOLVED
+        @assert JuMP.termination_status(model) == JuMP.MOI.LOCALLY_SOLVED
         reconstruction[current_spin,1:num_spins] = deepcopy(JuMP.value.(x))
     end
 
@@ -326,7 +324,7 @@ function learn(samples::Array{T,2}, formulation::RPLE, method::NLP) where T <: R
         end
 
         JuMP.optimize!(model)
-        @assert JuMP.termination_status(model) == MOI.LOCALLY_SOLVED
+        @assert JuMP.termination_status(model) == JuMP.MOI.LOCALLY_SOLVED
         reconstruction[current_spin,1:num_spins] = deepcopy(JuMP.value.(x))
     end
 
