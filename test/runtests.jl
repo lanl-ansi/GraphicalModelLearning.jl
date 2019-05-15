@@ -1,11 +1,14 @@
 using GraphicalModelLearning
 using Ipopt
+using JuMP
 
 using Test
 using Random
 
 import DelimitedFiles: readdlm
 import LinearAlgebra: diag
+
+const SOLVER = with_optimizer(Ipopt.Optimizer, print_level=0)
 
 include("common.jl")
 
@@ -83,19 +86,19 @@ end
     samples = readdlm("data/mvt_samples.csv", ',')
 
     Random.seed!(0) # fix random number generator
-    learned_gm_rise = learn(samples, RISE(0.2, false), NLP(IpoptSolver(print_level=0)))
+    learned_gm_rise = learn(samples, RISE(0.2, false), NLP(SOLVER))
     base_learned_gm = readdlm("data/mvt_RISE_learned.csv", ',')
     #println(abs.(learned_gm_rise - base_learned_gm))
     @test isapprox(learned_gm_rise, base_learned_gm)
 
     Random.seed!(0) # fix random number generator
-    learned_gm_logrise = learn(samples, logRISE(0.2, false), NLP(IpoptSolver(print_level=0)))
+    learned_gm_logrise = learn(samples, logRISE(0.2, false), NLP(SOLVER))
     base_learned_gm = readdlm("data/mvt_logRISE_learned.csv", ',')
     #println(abs.(learned_gm_logrise - base_learned_gm))
     @test isapprox(learned_gm_logrise, base_learned_gm)
 
     Random.seed!(0) # fix random number generator
-    learned_gm_rple = learn(samples, RPLE(0.2, false), NLP(IpoptSolver(print_level=0)))
+    learned_gm_rple = learn(samples, RPLE(0.2, false), NLP(SOLVER))
     base_learned_gm = readdlm("data/mvt_RPLE_learned.csv", ',')
     #println(abs.(learned_gm_rple - base_learned_gm))
     @test isapprox(learned_gm_rple, base_learned_gm)
@@ -148,8 +151,8 @@ end
     samples = readdlm("data/mvt_samples.csv", ',')
 
     rand(0) # fix random number generator
-    learned_ising = learn(samples, RISE(0.2, false), NLP(IpoptSolver(print_level=0)))
-    learned_two_body = learn(samples, multiRISE(0.2, false, 2), NLP(IpoptSolver(print_level=0)))
+    learned_ising = learn(samples, RISE(0.2, false), NLP(SOLVER))
+    learned_two_body = learn(samples, multiRISE(0.2, false, 2), NLP(SOLVER))
 
     learned_ising_dict = convert(Dict, learned_ising)
     @test length(learned_ising_dict) == length(learned_two_body)

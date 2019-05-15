@@ -6,12 +6,12 @@ export GMLFormulation, RISE, logRISE, RPLE, RISEA, multiRISE
 export GMLMethod, NLP
 
 using JuMP
-using MathProgBase # for solver type
 using Ipopt
 
 import LinearAlgebra
 import LinearAlgebra: diag
 import Statistics: mean
+
 
 include("models.jl")
 
@@ -59,10 +59,10 @@ RPLE() = RPLE(0.2, true)
 abstract type GMLMethod end
 
 mutable struct NLP <: GMLMethod
-    solver::MathProgBase.AbstractMathProgSolver
+    solver::JuMP.OptimizerFactory
 end
 # default values
-NLP() = NLP(IpoptSolver(print_level=0))
+NLP() = NLP(with_optimizer(Ipopt.Optimizer, print_level=0))
 
 
 # default settings
@@ -108,26 +108,25 @@ function learn(samples::Array{T,2}, formulation::multiRISE, method::NLP) where T
                 end
         end
 
-        m = Model(solver = method.solver)
+        model = Model(method.solver)
 
-        @variable(m, x[keys(nodal_stat)])
-        @variable(m, z[keys(nodal_stat)])
+        @variable(model, x[keys(nodal_stat)])
+        @variable(model, z[keys(nodal_stat)])
 
-        @NLobjective(m, Min,
+        @NLobjective(model, Min,
             sum((samples[k,1]/num_samples)*exp(-sum(x[inter]*stat[k] for (inter,stat) = nodal_stat)) for k=1:num_conf) +
             lambda*sum(z[inter] for inter = keys(nodal_stat) if length(inter)>1)
         )
 
         for inter in keys(nodal_stat)
-            @constraint(m, z[inter] >=  x[inter]) #z_plus
-            @constraint(m, z[inter] >= -x[inter]) #z_minus
+            @constraint(model, z[inter] >=  x[inter]) #z_plus
+            @constraint(model, z[inter] >= -x[inter]) #z_minus
         end
 
-        status = solve(m)
-        @assert status == :Optimal
+        JuMP.optimize!(model)
+        @assert JuMP.termination_status(model) == JuMP.MOI.LOCALLY_SOLVED
 
-
-        nodal_reconstruction = getvalue(x)
+        nodal_reconstruction = JuMP.value.(x)
         for inter = keys(nodal_stat)
             reconstruction[inter] = deepcopy(nodal_reconstruction[inter])
         end
@@ -149,7 +148,7 @@ function learn(samples::Array{T,2}, formulation::multiRISE, method::NLP) where T
         end
     end
 
-    return FactorGraph(inter_order, num_spins, :spin, reconstruction) 
+    return FactorGraph(inter_order, num_spins, :spin, reconstruction)
 end
 
 function learn(samples::Array{T,2}, formulation::RISE, method::NLP) where T <: Real
@@ -162,24 +161,24 @@ function learn(samples::Array{T,2}, formulation::RISE, method::NLP) where T <: R
     for current_spin = 1:num_spins
         nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
 
-        m = Model(solver = method.solver)
+        model = Model(method.solver)
 
-        @variable(m, x[1:num_spins])
-        @variable(m, z[1:num_spins])
+        @variable(model, x[1:num_spins])
+        @variable(model, z[1:num_spins])
 
-        @NLobjective(m, Min,
+        @NLobjective(model, Min,
             sum((samples[k,1]/num_samples)*exp(-sum(x[i]*nodal_stat[k,i] for i=1:num_spins)) for k=1:num_conf) +
             lambda*sum(z[j] for j=1:num_spins if current_spin!=j)
         )
 
         for j in 1:num_spins
-            @constraint(m, z[j] >=  x[j]) #z_plus
-            @constraint(m, z[j] >= -x[j]) #z_minus
+            @constraint(model, z[j] >=  x[j]) #z_plus
+            @constraint(model, z[j] >= -x[j]) #z_minus
         end
 
-        status = solve(m)
-        @assert status == :Optimal
-        reconstruction[current_spin,1:num_spins] = deepcopy(getvalue(x))
+        JuMP.optimize!(model)
+        @assert JuMP.termination_status(model) == JuMP.MOI.LOCALLY_SOLVED
+        reconstruction[current_spin,1:num_spins] = deepcopy(JuMP.value.(x))
     end
 
     if formulation.symmetrization
@@ -228,30 +227,29 @@ function learn(samples::Array{T,2}, formulation::RISEA, method::NLP) where T <: 
             lambda*sum(z[j] for j=1:num_spins if current_spin!=j)
         end
 
-        m = Model(solver = method.solver)
+        model = Model(method.solver)
 
-        JuMP.register(m, :obj, num_spins, obj, grad)
-        JuMP.register(m, :l1norm, num_spins, l1norm, autodiff=true)
+        JuMP.register(model, :obj, num_spins, obj, grad)
+        JuMP.register(model, :l1norm, num_spins, l1norm, autodiff=true)
 
-        @variable(m, x[1:num_spins])
-        @variable(m, z[1:num_spins])
+        @variable(model, x[1:num_spins])
+        @variable(model, z[1:num_spins])
 
 
-        JuMP.setNLobjective(m, :Min, Expr(:call, :+,
+        JuMP.setNLobjective(model, :Min, Expr(:call, :+,
                                             Expr(:call, :obj, x...),
                                             Expr(:call, :l1norm, z...)
                                         )
                             )
 
-
         for j in 1:num_spins
-            @constraint(m, z[j] >=  x[j]) #z_plus
-            @constraint(m, z[j] >= -x[j]) #z_minus
+            @constraint(model, z[j] >=  x[j]) #z_plus
+            @constraint(model, z[j] >= -x[j]) #z_minus
         end
 
-        status = solve(m)
-        @assert status == :Optimal
-        reconstruction[current_spin,1:num_spins] = deepcopy(getvalue(x))
+        JuMP.optimize!(model)
+        @assert JuMP.termination_status(model) == JuMP.MOI.LOCALLY_SOLVED
+        reconstruction[current_spin,1:num_spins] = deepcopy(JuMP.value.(x))
     end
 
     if formulation.symmetrization
@@ -272,24 +270,24 @@ function learn(samples::Array{T,2}, formulation::logRISE, method::NLP) where T <
     for current_spin = 1:num_spins
         nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
 
-        m = Model(solver = method.solver)
+        model = Model(method.solver)
 
-        @variable(m, x[1:num_spins])
-        @variable(m, z[1:num_spins])
+        @variable(model, x[1:num_spins])
+        @variable(model, z[1:num_spins])
 
-        @NLobjective(m, Min,
+        @NLobjective(model, Min,
             log(sum((samples[k,1]/num_samples)*exp(-sum(x[i]*nodal_stat[k,i] for i=1:num_spins)) for k=1:num_conf)) +
             lambda*sum(z[j] for j=1:num_spins if current_spin!=j)
         )
 
         for j in 1:num_spins
-            @constraint(m, z[j] >=  x[j]) #z_plus
-            @constraint(m, z[j] >= -x[j]) #z_minus
+            @constraint(model, z[j] >=  x[j]) #z_plus
+            @constraint(model, z[j] >= -x[j]) #z_minus
         end
 
-        status = solve(m)
-        @assert status == :Optimal
-        reconstruction[current_spin,1:num_spins] = deepcopy(getvalue(x))
+        JuMP.optimize!(model)
+        @assert JuMP.termination_status(model) == JuMP.MOI.LOCALLY_SOLVED
+        reconstruction[current_spin,1:num_spins] = deepcopy(JuMP.value.(x))
     end
 
     if formulation.symmetrization
@@ -310,24 +308,24 @@ function learn(samples::Array{T,2}, formulation::RPLE, method::NLP) where T <: R
     for current_spin = 1:num_spins
         nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
 
-        m = Model(solver = method.solver)
+        model = Model(method.solver)
 
-        @variable(m, x[1:num_spins])
-        @variable(m, z[1:num_spins])
+        @variable(model, x[1:num_spins])
+        @variable(model, z[1:num_spins])
 
-        @NLobjective(m, Min,
+        @NLobjective(model, Min,
             sum((samples[k,1]/num_samples)*log(1 + exp(-2*sum(x[i]*nodal_stat[k,i] for i=1:num_spins))) for k=1:num_conf) +
             lambda*sum(z[j] for j=1:num_spins if current_spin!=j)
         )
 
         for j in 1:num_spins
-            @constraint(m, z[j] >=  x[j]) #z_plus
-            @constraint(m, z[j] >= -x[j]) #z_minus
+            @constraint(model, z[j] >=  x[j]) #z_plus
+            @constraint(model, z[j] >= -x[j]) #z_minus
         end
 
-        status = solve(m)
-        @assert status == :Optimal
-        reconstruction[current_spin,1:num_spins] = deepcopy(getvalue(x))
+        JuMP.optimize!(model)
+        @assert JuMP.termination_status(model) == JuMP.MOI.LOCALLY_SOLVED
+        reconstruction[current_spin,1:num_spins] = deepcopy(JuMP.value.(x))
     end
 
     if formulation.symmetrization
