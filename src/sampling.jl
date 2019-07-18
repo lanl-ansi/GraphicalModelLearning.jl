@@ -2,7 +2,10 @@ export sample
 
 export GMSampler, Gibbs
 
+export gibbsMCsampler
+
 using StatsBase
+using LinearAlgebra
 
 abstract type GMSampler end
 
@@ -34,7 +37,7 @@ end
 function sample_generation_ising(gm::FactorGraph{T}, samples_per_bin::Integer, bins::Int) where T <: Real
     @assert bins >= 1
 
-    spin_number   = gm.varible_count
+    spin_number   = gm.variable_count
     config_number = 2^spin_number
 
     adjacency_matrix = convert(Array{T,2}, gm)
@@ -60,7 +63,7 @@ end
 function weigh_proba(int_representation::Int, gm::FactorGraph{T}, spins::Array{Int,1}) where T <: Real
     digits!(spins, int_representation, base=2)
     spins .= bool_to_spin.(spins)
-    evaluation = sum( weight*prod(spins[i] for i in term) for (term, weight) in gm) 
+    evaluation = sum( weight*prod(spins[i] for i in term) for (term, weight) in gm)
     return exp(evaluation)
 end
 
@@ -68,7 +71,7 @@ function sample_generation(gm::FactorGraph{T}, samples_per_bin::Integer, bins::I
     @assert bins >= 1
     #info("use general sample model")
 
-    spin_number   = gm.varible_count
+    spin_number   = gm.variable_count
     config_number = 2^spin_number
 
     items   = [i for i in 0:(config_number-1)]
@@ -103,4 +106,39 @@ function sample(gm::FactorGraph{T}, number_sample::Integer, replicates::Integer,
     end
 
     return samples
+end
+
+function gibbsMCsampler(gm::FactorGraph{T}, numsteps::Integer, initial_spin_state::Array{Int8,1}; verbose=false) where T <: Real
+    all_neighbors = generate_neighbors(gm)
+
+
+    current_state = deepcopy(initial_spin_state)
+    if verbose
+        println("Beginning from state $current_state")
+    end
+
+    for i in 1:numsteps
+        flipping_spin = rand(1:gm.variable_count)
+        site_state = current_state[flipping_spin]
+
+        site_contrib = 0.
+        for (neighbors, weight) in all_neighbors[flipping_spin]
+            site_contrib += prod(current_state[neighbors])*weight
+        end
+
+        weight_noflip = exp(site_contrib)
+        weight_flip = 1/weight_noflip
+        new_spin = StatsBase.sample([site_state, -site_state], StatsBase.Weights([weight_noflip, weight_flip]))
+        current_state[flipping_spin] = new_spin
+
+        if verbose
+            println("Proposing flip on spin $flipping_spin with value $site_state")
+            println("Found local contribution $site_contrib")
+            println("Will remain in state with p∝$weight_noflip and flip with p∝$weight_flip")
+            println("New spin value is $new_spin")
+            println("new state is $current_state")
+        end
+
+    end
+    current_state
 end

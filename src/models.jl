@@ -2,31 +2,37 @@
 
 export FactorGraph, jsondata
 
+export ferromagnet_square_lattice, ferromagnet_3body_random
+
+export generate_neighbors
+
+using StatsBase
+
 alphabets = [:spin, :boolean, :integer, :integer_pos, :real, :real_pos]
 
 
 mutable struct FactorGraph{T <: Real}
     order::Int
-    varible_count::Int
+    variable_count::Int
     alphabet::Symbol
     terms::Dict{Tuple,T} # TODO, would be nice to have a stronger tuple type here
     variable_names::Union{Vector{String}, Nothing}
     #FactorGraph(a,b,c,d,e) = check_model_data(a,b,c,d,e) ? new(a,b,c,d,e) : error("generic init problem")
 end
 
-FactorGraph(order::Int, varible_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}) where T <: Real = FactorGraph{T}(order, varible_count, alphabet, terms, nothing)
+FactorGraph(order::Int, variable_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}) where T <: Real = FactorGraph{T}(order, variable_count, alphabet, terms, nothing)
 FactorGraph(matrix::Array{T,2}) where T <: Real = convert(FactorGraph{T}, matrix)
 FactorGraph(dict::Dict{Tuple,T}) where T <: Real = convert(FactorGraph{T}, dict)
 FactorGraph(list::Array{Any,1}) = convert(FactorGraph, list)
 
 
-function check_model_data(order::Int, varible_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}, variable_names::Union{Vector{String}, Nothing}) where T <: Real
+function check_model_data(order::Int, variable_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}, variable_names::Union{Vector{String}, Nothing}) where T <: Real
     if !in(alphabet, alphabets)
         error("alphabet $(alphabet) is not supported")
         return false
     end
-    if variable_names != nothing && length(variable_names) != varible_count
-        error("expected $(varible_count) but only given $(length(variable_names))")
+    if variable_names != nothing && length(variable_names) != variable_count
+        error("expected $(variable_count) but only given $(length(variable_names))")
         return false
     end
     for (k,v) in terms
@@ -36,11 +42,11 @@ function check_model_data(order::Int, varible_count::Int, alphabet::Symbol, term
         end
         for (i,index) in enumerate(k)
             #println(i," ",index)
-            if index < 1 || index > varible_count
-                error("a term has an index of $(index) but it should be in the range of 1:$(varible_count)")
+            if index < 1 || index > variable_count
+                error("a term has an index of $(index) but it should be in the range of 1:$(variable_count)")
                 return false
             end
-            #= 
+            #=
             # TODO see when this should be enforced
             if i > 1
                 if k[i-1] > index
@@ -55,7 +61,7 @@ end
 
 function Base.show(io::IO, gm::FactorGraph)
     println(io, "alphabet: ", gm.alphabet)
-    println(io, "vars: ", gm.varible_count)
+    println(io, "vars: ", gm.variable_count)
     if gm.variable_names != nothing
         println(io, "variable names: ")
         println(io, "  ", get(gm.variable_names))
@@ -86,7 +92,7 @@ Base.keys(gm::FactorGraph) = keys(gm.terms)
 
 function diag_keys(gm::FactorGraph)
     dkeys = Tuple[]
-    for i in 1:gm.varible_count
+    for i in 1:gm.variable_count
         key = diag_key(gm, i)
         if key in keys(gm.terms)
             push!(dkeys, key)
@@ -97,7 +103,7 @@ end
 
 diag_key(gm::FactorGraph, i::Int) = tuple(fill(i, gm.order)...)
 
-#Base.diag(gm::FactorGraph{T}) where T <: Real = [ get(gm.terms, diag_key(gm, i), zero(T)) for i in 1:gm.varible_count ]
+#Base.diag(gm::FactorGraph{T}) where T <: Real = [ get(gm.terms, diag_key(gm, i), zero(T)) for i in 1:gm.variable_count ]
 
 #Base.DataFmt.writecsv(io, gm::FactorGraph{T}, args...; kwargs...) where T <: Real = writecsv(io, convert(Array{T,2}, gm), args...; kwargs...)
 
@@ -107,18 +113,18 @@ function Base.convert(::Type{FactorGraph{T}}, m::Array{T,2}) where T <: Real
 
     @info "assuming spin alphabet"
     alphabet = :spin
-    varible_count = size(m,1)
+    variable_count = size(m,1)
 
     terms = Dict{Tuple,T}()
 
-    for key in permutations(1:varible_count, 1)
+    for key in permutations(1:variable_count, 1)
         weight = m[key..., key...]
         if !isapprox(weight, 0.0)
             terms[key] = weight
         end
     end
 
-    for key in permutations(1:varible_count, 2)
+    for key in permutations(1:variable_count, 2)
         weight = m[key...]
         if !isapprox(weight, 0.0)
             terms[key] = weight
@@ -130,8 +136,6 @@ function Base.convert(::Type{FactorGraph{T}}, m::Array{T,2}) where T <: Real
             warn("values at $(key) and $(rev) differ by $(delta), only $(key) will be used")
         end
     end
-
-    return FactorGraph(2, varible_count, alphabet, terms)
 end
 
 function Base.convert(::Type{Array{T,2}}, gm::FactorGraph{T}) where T <: Real
@@ -139,7 +143,7 @@ function Base.convert(::Type{Array{T,2}}, gm::FactorGraph{T}) where T <: Real
         error("cannot convert a FactorGraph of order $(gm.order) to a matrix")
     end
 
-    matrix = zeros(gm.varible_count, gm.varible_count)
+    matrix = zeros(gm.variable_count, gm.variable_count)
     for (k,v) in gm
         if length(k) == 1
             matrix[k..., k...] = v
@@ -153,23 +157,45 @@ function Base.convert(::Type{Array{T,2}}, gm::FactorGraph{T}) where T <: Real
     return matrix
 end
 
+function Base.convert(::Type{Array{T,3}}, gm::FactorGraph{T}) where T <: Real
+    if gm.order != 3
+        error("cannot convert a FactorGraph of order $(gm.order) to a matrix")
+    end
+
+    matrix = zeros(gm.variable_count, gm.variable_count, gm.variable_count)
+    for (k,v) in gm
+        if length(k) == 1 || length(k) == 2
+            error("Does not support 1 or 2 body interactions")
+        else
+            a, b, c = k
+            matrix[a, b, c] = v
+            matrix[a, c, b] = v
+            matrix[b, a, c] = v
+            matrix[b, c, a] = v
+            matrix[c, a, b] = v
+            matrix[c, b, a] = v
+        end
+    end
+
+    return matrix
+end
 
 Base.convert(::Type{Dict}, m::Array{T,2}) where T <: Real = convert(Dict{Tuple,T}, m)
 function Base.convert(::Type{Dict{Tuple,T}}, m::Array{T,2}) where T <: Real
     @assert size(m,1) == size(m,2) #check matrix is square
 
-    varible_count = size(m,1)
+    variable_count = size(m,1)
 
     terms = Dict{Tuple,T}()
 
-    for key in permutations(1:varible_count, 1)
+    for key in permutations(1:variable_count, 1)
         weight = m[key..., key...]
         if !isapprox(weight, 0.0)
             terms[key] = weight
         end
     end
 
-    for key in permutations(1:varible_count, 2, asymmetric=true)
+    for key in permutations(1:variable_count, 2, asymmetric=true)
         if key[1] != key[2]
             weight = m[key...]
             if !isapprox(weight, 0.0)
@@ -200,7 +226,7 @@ function Base.convert(::Type{FactorGraph}, list::Array{Any,1})
         max_variable = max(max_variable, maximum(term))
     end
 
-    @info "dectected $(max_variable) variables with order $(max_order)"
+    @info "detected $(max_variable) variables with order $(max_order)"
 
     return FactorGraph(max_order, max_variable, alphabet, terms)
 end
@@ -219,7 +245,7 @@ function Base.convert(::Type{FactorGraph{T}}, dict::Dict{Tuple,T}) where T <: Re
         max_variable = max(max_variable, maximum(term))
     end
 
-    @info "dectected $(max_variable) variables with order $(max_order)"
+    @info "detected $(max_variable) variables with order $(max_order)"
 
     return FactorGraph(max_order, max_variable, alphabet, dict)
 end
@@ -243,4 +269,100 @@ function permutations(partial_perm::Array{Any,1}, items, order::Int, asymmetric:
         end
         return perms
     end
+end
+
+function ferromagnet_square_lattice(L::Int, beta::Float64)
+    terms = Dict{Tuple, Float64}()
+    # Index terms from top left going down columns
+    # with periodic boundaries connections in
+    for row in 1:L
+        for col in 1:L
+            site = L*(col-1) + row
+
+            if row < L
+                terms[(site, site+1)] = beta
+            else
+                terms[(site, site-L+1)] = beta
+            end
+            if col < L
+                terms[(site, site+L)] = beta
+            elseif row < L
+                terms[(site, site % L)] = beta
+            else
+                terms[(site, L)] = beta
+            end
+        end
+    end
+    FactorGraph(terms)
+end
+
+function fullyfrustrated_ising(L::Int, beta::Float64)
+    @assert L % 2 == 0
+    terms = Dict{Tuple, Float64}()
+    # Index terms from top left going down columns
+    # with periodic boundaries connections
+    for col in 1:L
+        for row in 1:L
+            site = L*(col-1) + row
+            if col % 2 == 0
+                col_J = -beta
+            else
+                col_J = beta
+            end
+            if row < L
+                terms[(site, site+1)] = col_J
+            else
+                terms[(site, site-L+1)] = col_J
+            end
+            if col < L
+                terms[(site, site+L)] = beta
+            elseif row < L
+                terms[(site, site % L)] = beta
+            else
+                terms[(site, L)] = beta
+            end
+        end
+    end
+    FactorGraph(terms)
+end
+
+function ferromagnet_3body_random(num_sites::Int64, num_terms::Int64, beta::Float64)
+    terms = Dict{Tuple, Float64}()
+    all_possible_terms = []
+    for site1 = 1:num_sites-2
+        for site2 = site1+1:num_sites-1
+            for site3 = site2+1:num_sites
+                push!(all_possible_terms, (site1, site2, site3))
+            end
+        end
+    end
+    terms_sample = StatsBase.sample(all_possible_terms, num_terms, replace=false)
+    for (site1, site2, site3) in terms_sample
+        terms[(site1, site2, site3)] = beta
+    end
+    FactorGraph(terms)
+
+end
+
+function generate_neighbors(gm::FactorGraph{T}) where T <: Real
+    #========================================
+    Generates a dictionary containing the neighboring terms
+    of a site.  neighbors[i] returns an array where each entry
+    corresponds to a term in the factor graph as ([sites], weight)
+    The contribution of this term to the 'energy' can be calculated as
+    weight*product(state[[sites]])
+    ========================================#
+
+
+    neighbors = Dict{Integer, Array{Tuple{Array{}, T}}}()
+    for i in 1:gm.variable_count
+        neighbors[i] = []
+    end
+
+    for (interacting, weight) in gm.terms
+        for (idx, site) in enumerate(interacting)
+            push!(neighbors[site], ([interacting...], weight))
+        end
+    end
+    return neighbors
 end
