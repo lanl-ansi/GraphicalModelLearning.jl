@@ -109,7 +109,7 @@ function sample(gm::FactorGraph{T}, number_sample::Integer, replicates::Integer,
 end
 
 function gibbsMCsampler(gm::FactorGraph{T}, numsteps::Integer, initial_spin_state::Array{Int8,1}; verbose=false) where T <: Real
-    all_neighbors = generate_neighbors(gm)
+    all_neighborhoods = generate_neighborhoods(gm)
 
 
     current_state = deepcopy(initial_spin_state)
@@ -122,9 +122,9 @@ function gibbsMCsampler(gm::FactorGraph{T}, numsteps::Integer, initial_spin_stat
         site_state = current_state[flipping_spin]
 
         site_contrib = 0.
-        if haskey(all_neighbors, flipping_spin)
-            for (neighbors, weight) in all_neighbors[flipping_spin]
-                site_contrib += prod(current_state[neighbors])*weight
+        if haskey(all_neighborhoods, flipping_spin)
+            for (term_sites, weight) in all_neighborhoods[flipping_spin]
+                site_contrib += prod(current_state[term_sites])*weight
             end
         end
 

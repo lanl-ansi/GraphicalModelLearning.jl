@@ -351,19 +351,20 @@ of a site.  neighbors[i] returns an array where each entry
 corresponds to a term in the factor graph as ([sites], weight)
 The contribution of this term to the 'energy' can be calculated as
 weight*product(state[[sites]]).  Note that each entry in the array
-also contains the site i so that they can be referenced in this way.
+also contains the site i so that the energy contribution can be
+calculated directly.
 """
-function generate_neighbors(gm::FactorGraph{T}) where T <: Real
-    neighbors = Dict{Integer, Array{Tuple{Array{}, T}}}()
+function generate_neighborhoods(gm::FactorGraph{T}) where T <: Real
+    neighborhoods = Dict{Integer, Array{Tuple{Array{}, T}}}()
 
     for (interacting, weight) in gm.terms
         for site in interacting
-            if !haskey(neighbors, site)
-                neighbors[site] = []
+            if !haskey(neighborhoods, site)
+                neighborhoods[site] = []
             end
 
-            push!(neighbors[site], ([interacting...], weight))
+            push!(neighborhoods[site], ([interacting...], weight))
         end
     end
-    return neighbors
+    return neighborhoods
 end
