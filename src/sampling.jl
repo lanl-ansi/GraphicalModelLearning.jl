@@ -122,9 +122,12 @@ function gibbsMCsampler(gm::FactorGraph{T}, numsteps::Integer, initial_spin_stat
         site_state = current_state[flipping_spin]
 
         site_contrib = 0.
-        for (neighbors, weight) in all_neighbors[flipping_spin]
-            site_contrib += prod(current_state[neighbors])*weight
+        if haskey(all_neighbors, flipping_spin)
+            for (neighbors, weight) in all_neighbors[flipping_spin]
+                site_contrib += prod(current_state[neighbors])*weight
+            end
         end
+
 
         weight_noflip = exp(site_contrib)
         weight_flip = 1/weight_noflip

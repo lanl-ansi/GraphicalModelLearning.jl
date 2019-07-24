@@ -136,6 +136,7 @@ function Base.convert(::Type{FactorGraph{T}}, m::Array{T,2}) where T <: Real
             warn("values at $(key) and $(rev) differ by $(delta), only $(key) will be used")
         end
     end
+    return FactorGraph(2, variable_count, alphabet, terms)
 end
 
 function Base.convert(::Type{Array{T,2}}, gm::FactorGraph{T}) where T <: Real
@@ -344,23 +345,23 @@ function ferromagnet_3body_random(num_sites::Int64, num_terms::Int64, beta::Floa
 
 end
 
+"""
+Generates a dictionary containing the neighboring terms
+of a site.  neighbors[i] returns an array where each entry
+corresponds to a term in the factor graph as ([sites], weight)
+The contribution of this term to the 'energy' can be calculated as
+weight*product(state[[sites]]).  Note that each entry in the array
+also contains the site i so that they can be referenced in this way.
+"""
 function generate_neighbors(gm::FactorGraph{T}) where T <: Real
-    #========================================
-    Generates a dictionary containing the neighboring terms
-    of a site.  neighbors[i] returns an array where each entry
-    corresponds to a term in the factor graph as ([sites], weight)
-    The contribution of this term to the 'energy' can be calculated as
-    weight*product(state[[sites]])
-    ========================================#
-
-
     neighbors = Dict{Integer, Array{Tuple{Array{}, T}}}()
-    for i in 1:gm.variable_count
-        neighbors[i] = []
-    end
 
     for (interacting, weight) in gm.terms
-        for (idx, site) in enumerate(interacting)
+        for site in interacting
+            if !haskey(neighbors, site)
+                neighbors[site] = []
+            end
+
             push!(neighbors[site], ([interacting...], weight))
         end
     end
