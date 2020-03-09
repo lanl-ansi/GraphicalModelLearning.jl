@@ -4,6 +4,9 @@ GraphicalModelLearning.jl Change Log
 ### Staged
 - nothing
 
+### v0.2.1
+- Maintenance updates, Julia v1.3, JuMP v0.21, Ipopt v0.6
+
 ### v0.2.0
 - Migrate to JuMP 0.19
 
