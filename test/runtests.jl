@@ -14,6 +14,8 @@ include("common.jl")
 
 @testset "GraphicalModelLearning" begin
 
+@test GraphicalModelLearning.TestGML(false) != GraphicalModelLearning.TestGML(true)
+
 @testset "factor graphs" begin
     for (name, gm) in gms
         matrix = convert(Array{Float64,2}, gm)

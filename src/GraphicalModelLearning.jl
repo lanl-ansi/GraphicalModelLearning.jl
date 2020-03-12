@@ -19,6 +19,12 @@ include("sampling.jl")
 
 abstract type GMLFormulation end
 
+mutable struct TestGML <: GMLFormulation
+    symmetrization::Bool
+end
+# default values
+TestGML() = TestGML(true)
+
 mutable struct multiRISE <: GMLFormulation
     regularizer::Real
     symmetrization::Bool
