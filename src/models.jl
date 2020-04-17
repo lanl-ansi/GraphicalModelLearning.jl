@@ -350,8 +350,8 @@ Generates a dictionary containing the neighboring terms
 of a site.  neighbors[i] returns an array where each entry
 corresponds to a term in the factor graph as ([sites], weight)
 The contribution of this term to the 'energy' can be calculated as
-weight*product(state[[sites]]).  Note that each entry in the array
-also contains the site i so that the energy contribution can be
+weight*product(state[[sites]]).  Note that value assigned to key i
+also contains i so that the energy contribution can be
 calculated directly.
 """
 function generate_neighborhoods(gm::FactorGraph{T}) where T <: Real

@@ -3,7 +3,7 @@ module GraphicalModelLearning
 export learn, inverse_ising
 
 export GMLFormulation, RISE, logRISE, RPLE, RISEA, multiRISE
-export GMLMethod, NLP
+export GMLMethod, NLP, EntDescent
 
 using JuMP
 using Ipopt
@@ -64,6 +64,13 @@ end
 # default values
 NLP() = NLP(with_optimizer(Ipopt.Optimizer, print_level=0))
 
+mutable struct EntDescent <: GMLMethod
+    grad_steps::Int64
+    init_stepsize::Float64
+    l1_bound::Float64
+end
+# default values
+EntDescent() = EntDescent(1000, 0.05, 2.)
 
 # default settings
 learn(samples::Array{T,2}) where T <: Real = learn(samples, RISE(), NLP())
@@ -333,6 +340,79 @@ function learn(samples::Array{T,2}, formulation::RPLE, method::NLP) where T <: R
     end
 
     return reconstruction
+end
+
+
+function learn(samples::Array{T,2}, formulation::RISE, method::EntDescent) where T <: Real
+    num_conf, num_spins, num_samples = data_info(samples)
+
+    #lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
+
+    grad_steps = method.grad_steps
+    η = method.init_stepsize
+    l1_bound = method.l1_bound
+
+    @info "Running Entropic descent: $grad_steps steps, $l1_bound element bound"
+    reconstruction = Array{Float64}(undef, num_spins, num_spins)
+    objectives = Array{Float64}(undef, grad_steps, num_spins)
+
+
+    for current_spin = 1:num_spins
+        #contains all spin products with current spin in each configuration (current spin value in its spot)
+        nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
+
+        function RISE_obj(x::Vector{Float64})
+            return sum((samples[k,1]/num_samples)*exp(-sum(x[i]*nodal_stat[k,i] for i=1:num_spins)) for k=1:num_conf)
+        end
+
+        function RISE_grad(x::Vector{Float64}, grad_dir::Int64)
+            return sum((samples[k,1]/num_samples)*(-nodal_stat[k,grad_dir])*exp(-sum(x[i]*nodal_stat[k,i] for i=1:num_spins)) for k=1:num_conf)
+        end
+
+        #Initialize
+        x_plus = [1/(2*num_spins + 1) for i=1:num_spins]
+        x_minus = [1/(2*num_spins + 1) for i=1:num_spins]
+        y = 1/(2*num_spins + 1)
+        η = method.init_stepsize
+
+        best_est = l1_bound .* (x_plus - x_minus)
+        best_obj = RISE_obj(l1_bound .* (x_plus - x_minus))
+
+        # Track objective
+        spin_objective = [best_obj]
+        for t=2:grad_steps
+            # gradient step
+            grad = [l1_bound*RISE_grad(l1_bound .* (x_plus - x_minus), i) for i=1:num_spins]
+            w_plus = x_plus .* exp.(-η .* grad)
+            w_minus = x_minus .* exp.(η .* grad)
+
+            # projection step
+            z = y + sum(w_plus + w_minus)
+            x_plus = w_plus ./ z
+            x_minus = w_minus ./ z
+            y = y/z
+            #η = η * sqrt(t/(t+1))
+
+            # track lowest objective and estimate
+            est = l1_bound .* (x_plus - x_minus)
+            obj = RISE_obj(est)
+            if obj < best_obj
+                best_obj = obj
+                best_est = est
+            end
+            # For debugging and plotting the objectives
+            push!(spin_objective, obj)
+        end
+
+        reconstruction[current_spin,1:num_spins] = deepcopy(best_est)
+        objectives[:, current_spin] = spin_objective
+    end
+
+    if formulation.symmetrization
+        reconstruction = 0.5*(reconstruction + transpose(reconstruction))
+    end
+
+    return reconstruction, objectives
 end
 
 
