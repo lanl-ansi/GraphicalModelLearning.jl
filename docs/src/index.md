@@ -13,11 +13,11 @@ GraphicalModelLearning.jl is a Julia package containing algorithms for learning 
 To install the package use,
 
 ```julia
-Pkg.add("GraphicalModelLearning")
+] add GraphicalModelLearning
 ```
 
 To test that the package is working correctly run,
 
 ```julia
-Pkg.test("GraphicalModelLearning")
+] test GraphicalModelLearning
 ```
