@@ -1,6 +1,6 @@
 module GraphicalModelLearning
 
-export learn, inverse_ising
+export learn, inverse_ising, learn_old
 
 export GMLFormulation, RISE, logRISE, RPLE, RISEA, multiRISE
 export GMLMethod, NLP, EntDescent
@@ -349,40 +349,36 @@ function learn(samples::Array{T,2}, formulation::RISE, method::EntDescent) where
     #lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
 
     grad_steps = method.grad_steps
-    η = method.init_stepsize
+    η_init = method.init_stepsize
     l1_bound = method.l1_bound
 
     @info "Running Entropic descent: $grad_steps steps, $l1_bound element bound"
     reconstruction = Array{Float64}(undef, num_spins, num_spins)
-    objectives = Array{Float64}(undef, grad_steps, num_spins)
-
+    objectives = Array{Float64}(undef, grad_steps+1, num_spins)
 
     for current_spin = 1:num_spins
         #contains all spin products with current spin in each configuration (current spin value in its spot)
         nodal_stat  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i=1:num_spins]
 
-        function RISE_obj(x::Vector{Float64})
-            return sum((samples[k,1]/num_samples)*exp(-sum(x[i]*nodal_stat[k,i] for i=1:num_spins)) for k=1:num_conf)
-        end
-
-        function RISE_grad(x::Vector{Float64}, grad_dir::Int64)
-            return sum((samples[k,1]/num_samples)*(-nodal_stat[k,grad_dir])*exp(-sum(x[i]*nodal_stat[k,i] for i=1:num_spins)) for k=1:num_conf)
-        end
-
         #Initialize
         x_plus = [1/(2*num_spins + 1) for i=1:num_spins]
         x_minus = [1/(2*num_spins + 1) for i=1:num_spins]
         y = 1/(2*num_spins + 1)
-        η = method.init_stepsize
+        η = η_init
 
-        best_est = l1_bound .* (x_plus - x_minus)
-        best_obj = RISE_obj(l1_bound .* (x_plus - x_minus))
+        est = l1_bound .* (x_plus - x_minus)
+        exp_arg = nodal_stat * est
+        obj = sum((samples[k,1]/num_samples)*exp(-exp_arg[k]) for k=1:num_conf)
+        best_est = est
+        best_obj = obj
 
         # Track objective
         spin_objective = [best_obj]
-        for t=2:grad_steps
+        for t=1:grad_steps
+            
             # gradient step
-            grad = [l1_bound*RISE_grad(l1_bound .* (x_plus - x_minus), i) for i=1:num_spins]
+            grad = [l1_bound*sum((samples[k,1]/num_samples)*(-nodal_stat[k,i])*exp(-exp_arg[k]) for k=1:num_conf) for i=1:num_spins]
+            grad = grad ./ obj
             w_plus = x_plus .* exp.(-η .* grad)
             w_minus = x_minus .* exp.(η .* grad)
 
@@ -391,14 +387,15 @@ function learn(samples::Array{T,2}, formulation::RISE, method::EntDescent) where
             x_plus = w_plus ./ z
             x_minus = w_minus ./ z
             y = y/z
-            #η = η * sqrt(t/(t+1))
+            η = η * sqrt(t/(t+1))
 
             # track lowest objective and estimate
-            est = l1_bound .* (x_plus - x_minus)
-            obj = RISE_obj(est)
+            est .= l1_bound .* (x_plus - x_minus)
+            exp_arg .= nodal_stat*est
+            obj = sum((samples[k,1]/num_samples)*exp(-exp_arg[k]) for k=1:num_conf)
             if obj < best_obj
                 best_obj = obj
-                best_est = est
+                best_est .= est
             end
             # For debugging and plotting the objectives
             push!(spin_objective, obj)
@@ -414,6 +411,5 @@ function learn(samples::Array{T,2}, formulation::RISE, method::EntDescent) where
 
     return reconstruction, objectives
 end
-
 
 end
