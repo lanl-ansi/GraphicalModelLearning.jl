@@ -65,12 +65,13 @@ end
 NLP() = NLP(with_optimizer(Ipopt.Optimizer, print_level=0))
 
 mutable struct EntDescent <: GMLMethod
-    grad_steps::Int64
+    max_steps::Int64
     init_stepsize::Float64
     l1_bound::Float64
+    grad_termination::Float64
 end
 # default values
-EntDescent() = EntDescent(1000, 0.05, 2.)
+EntDescent() = EntDescent(1e4, 0.05, 2., 1e-8)
 
 # default settings
 learn(samples::Array{T,2}) where T <: Real = learn(samples, RISE(), NLP())
@@ -348,13 +349,14 @@ function learn(samples::Array{T,2}, formulation::RISE, method::EntDescent) where
 
     #lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
 
-    grad_steps = method.grad_steps
+    max_steps = method.max_steps
     η_init = method.init_stepsize
     l1_bound = method.l1_bound
+    grad_termination = method.grad_termination
 
-    @info "Running Entropic descent: $grad_steps steps, $l1_bound element bound"
+    @info "Running Entropic descent: $max_steps steps, $l1_bound element bound"
     reconstruction = Array{Float64}(undef, num_spins, num_spins)
-    objectives = Array{Float64}(undef, grad_steps+1, num_spins)
+    objectives = Vector{Array{Float64}}(undef, num_spins)
 
     for current_spin = 1:num_spins
         #contains all spin products with current spin in each configuration (current spin value in its spot)
@@ -369,13 +371,19 @@ function learn(samples::Array{T,2}, formulation::RISE, method::EntDescent) where
         est = l1_bound .* (x_plus - x_minus)
         exp_arg = nodal_stat * est
         obj = sum((samples[k,1]/num_samples)*exp(-exp_arg[k]) for k=1:num_conf)
+        grad = ones(num_spins)
+
         best_est = est
         best_obj = obj
 
         # Track objective
         spin_objective = [best_obj]
-        for t=1:grad_steps
-            
+
+
+
+        t = 1
+        while t <= max_steps && maximum(abs.(grad)) > grad_termination
+
             # gradient step
             grad = [l1_bound*sum((samples[k,1]/num_samples)*(-nodal_stat[k,i])*exp(-exp_arg[k]) for k=1:num_conf) for i=1:num_spins]
             grad = grad ./ obj
@@ -399,10 +407,14 @@ function learn(samples::Array{T,2}, formulation::RISE, method::EntDescent) where
             end
             # For debugging and plotting the objectives
             push!(spin_objective, obj)
+            t += 1
         end
 
+        if t > max_steps
+            @warn "Maximum steps reached for site $current_spin, max gradient=$(maximum(abs.(grad)))"
+        end
         reconstruction[current_spin,1:num_spins] = deepcopy(best_est)
-        objectives[:, current_spin] = spin_objective
+        objectives[current_spin] = spin_objective
     end
 
     if formulation.symmetrization
