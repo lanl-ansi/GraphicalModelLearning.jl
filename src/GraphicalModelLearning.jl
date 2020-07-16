@@ -59,7 +59,7 @@ RPLE() = RPLE(0.2, true)
 abstract type GMLMethod end
 
 mutable struct NLP <: GMLMethod
-    solver::JuMP.OptimizerFactory
+    solver::Any
 end
 # default values
 NLP() = NLP(with_optimizer(Ipopt.Optimizer, print_level=0))
