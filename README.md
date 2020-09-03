@@ -34,6 +34,15 @@ Note that the first invocation of `learn` will be slow as the dependent librarie
 
 If you find GraphicalModelLearning useful in your work, we kindly request that you cite the following publications:
 ```
+@misc{1902.00600,
+    author = {Marc Vuffray and Sidhant Misra and Andrey Y. Lokhov},
+    title = {Efficient Learning of Discrete Graphical Models},
+    year = {2019},
+    eprint = {arXiv:1902.00600},
+    url = {https://arxiv.org/abs/1902.00600}
+}
+```
+```
 @article{Lokhove1700791,
     author = {Lokhov, Andrey Y. and Vuffray, Marc and Misra, Sidhant and Chertkov, Michael},
     title = {Optimal structure and parameter learning of Ising models},
@@ -41,7 +50,7 @@ If you find GraphicalModelLearning useful in your work, we kindly request that y
     volume = {4}, number = {3}, year = {2018},
     publisher = {American Association for the Advancement of Science},
     doi = {10.1126/sciadv.1700791},
-    URL = {http://advances.sciencemag.org/content/4/3/e1700791}
+    url = {http://advances.sciencemag.org/content/4/3/e1700791}
 }
 ```
 ```
