@@ -9,13 +9,10 @@ Algorithms for Learning Graphical Models
 
 
 ## Installation
-In julia run, 
-
+The Julia package manager can be used to install GraphicalModelLearning as follows, 
 ```
-using Pkg
-Pkg.clone("https://github.com/lanl-ansi/GraphicalModelLearning.jl.git")
+] add GraphicalModelLearning
 ```
-
 
 ## Quick Start
 Try the following commands in julia,
