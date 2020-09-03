@@ -368,3 +368,22 @@ function generate_neighborhoods(gm::FactorGraph{T}) where T <: Real
     end
     return neighborhoods
 end
+
+"""
+For models with 2-body interactions, this returns an array neighbors
+such that neighbors[i] returns an array of site indices that interact
+with site i
+"""
+function neighbor_array(gm::FactorGraph{T}) where T <: Real
+    @assert gm.order == 2
+
+    neighborhoods = generate_neighborhoods(gm)
+    neighbors = [[] for site in 1:gm.variable_count]
+    for (sites, weight) in gm.terms
+        if length(sites) == 2
+            push!(neighbors[sites[1]], sites[2])
+            push!(neighbors[sites[2]], sites[1])
+        end
+    end
+    return neighbors
+end
