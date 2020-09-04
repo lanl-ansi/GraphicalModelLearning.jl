@@ -1,6 +1,6 @@
 module GraphicalModelLearning
 
-export learn, inverse_ising, learn_old
+export learn, learn_structured, inverse_ising, learn_old
 
 export GMLFormulation, RISE, logRISE, RPLE, RISEA, multiRISE
 export GMLMethod, NLP, EntropicDescent
@@ -421,6 +421,202 @@ function learn(samples::Array{T,2}, formulation::RISE, method::EntropicDescent; 
             @warn "Maximum steps reached for site $current_spin, max gradient=$(maximum(abs.(grad))), constraint slack = $constraint_slack "
         end
         reconstruction[current_spin,1:num_spins] = deepcopy(best_est)
+        if return_objectives
+            objectives[current_spin] = spin_objective
+        end
+    end
+
+    if formulation.symmetrization
+        reconstruction = 0.5*(reconstruction + transpose(reconstruction))
+    end
+    if return_objectives
+        return reconstruction, objectives
+    else
+        return reconstruction
+    end
+end
+
+function learn_structured(learned::FactorGraph{T1}, samples::Array{T2,2}, formulation::RISE, method::EntropicDescent; return_objectives=false) where T1 <: Real where T2 <: Real
+    num_conf, num_spins, num_samples = data_info(samples)
+
+    #lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
+
+    max_steps = method.max_steps
+    η_init = method.init_stepsize
+    l1_bound = method.l1_bound
+    grad_termination = method.grad_termination
+
+    learned_neighbors = neighbor_array(learned)
+
+    @info "Running Entropic descent: $max_steps steps, $l1_bound element bound"
+    reconstruction = zeros(num_spins, num_spins)
+    if return_objectives
+        objectives = Vector{Array{Float64}}(undef, num_spins)
+    end
+
+    for current_spin = 1:num_spins
+        num_learned_terms = length(learned_neighbors[current_spin])
+        #contains all spin products with current spin in each configuration (current spin value in its spot)
+        nodal_stat_learned  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i in learned_neighbors[current_spin]]
+
+        #Initialize
+        x_plus = [1/(2*num_learned_terms + 1) for i=1:num_learned_terms]
+        x_minus = [1/(2*num_learned_terms + 1) for i=1:num_learned_terms]
+        y = 1/(2*num_learned_terms + 1)
+        η = η_init
+
+        est = l1_bound .* (x_plus - x_minus)
+        exp_arg = nodal_stat_learned * est
+        obj = sum((samples[k,1]/num_samples)*exp(-exp_arg[k]) for k=1:num_conf)
+        grad = ones(num_learned_terms)
+
+        best_est = est
+        best_obj = obj
+
+        # Track objective
+        if return_objectives
+            spin_objective = [best_obj]
+        end
+
+
+
+        t = 1
+        while t <= max_steps && maximum(abs.(grad)) > grad_termination
+
+            # gradient step
+            grad = [l1_bound*sum((samples[k,1]/num_samples)*(-nodal_stat_learned[k,i])*exp(-exp_arg[k]) for k=1:num_conf) for i=1:num_learned_terms]
+            grad_obj = grad ./ obj
+            w_plus = x_plus .* exp.(-η .* grad_obj)
+            w_minus = x_minus .* exp.(η .* grad_obj)
+
+            # projection step
+            z = y + sum(w_plus + w_minus)
+            x_plus = w_plus ./ z
+            x_minus = w_minus ./ z
+            y = y/z
+            η = η * sqrt(t/(t+1))
+
+            # track lowest objective and estimate
+            est .= l1_bound .* (x_plus - x_minus)
+            exp_arg .= nodal_stat_learned * est
+            obj = sum((samples[k,1]/num_samples)*exp(-exp_arg[k]) for k=1:num_conf)
+            if obj < best_obj
+                best_obj = obj
+                best_est .= est
+            end
+            # For debugging and plotting the objectives
+            if return_objectives
+                push!(spin_objective, obj)
+            end
+            t += 1
+        end
+
+        if t > max_steps
+            constraint_slack = l1_bound - sum(abs.(est))
+            @warn "Maximum steps reached for site $current_spin, max gradient=$(maximum(abs.(grad))), constraint slack = $constraint_slack "
+        end
+        reconstruction[current_spin,learned_neighbors[current_spin]] = deepcopy(best_est)
+        if return_objectives
+            objectives[current_spin] = spin_objective
+        end
+    end
+
+    if formulation.symmetrization
+        reconstruction = 0.5*(reconstruction + transpose(reconstruction))
+    end
+    if return_objectives
+        return reconstruction, objectives
+    else
+        return reconstruction
+    end
+end
+
+
+function learn_structured(learned::FactorGraph{T1}, fixed::FactorGraph{T2}, samples::Array{T3,2}, formulation::RISE, method::EntropicDescent; return_objectives=false) where T1 <: Real where T2 <: Real where T3 <: Real
+    num_conf, num_spins, num_samples = data_info(samples)
+
+    #lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
+
+    max_steps = method.max_steps
+    η_init = method.init_stepsize
+    l1_bound = method.l1_bound
+    grad_termination = method.grad_termination
+
+    learned_neighbors = neighbor_array(learned)
+    fixed_neighbors = neighbor_array(fixed)
+
+    @info "Running Entropic descent: $max_steps steps, $l1_bound element bound"
+    reconstruction = zeros(num_spins, num_spins)
+    if return_objectives
+        objectives = Vector{Array{Float64}}(undef, num_spins)
+    end
+
+    for current_spin = 1:num_spins
+        num_learned_terms = length(learned_neighbors[current_spin])
+        fixed_couplings = [find_term(fixed, (current_spin, i)) for i in fixed_neighbors[current_spin]]
+
+        #contains all spin products with current spin in each configuration (current spin value in its spot)
+        nodal_stat_learned  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i in learned_neighbors[current_spin]]
+        nodal_stat_fixed  = [ samples[k, 1 + current_spin] * (i == current_spin ? 1 : samples[k, 1 + i]) for k=1:num_conf , i in fixed_neighbors[current_spin]]
+
+        #Initialize
+        x_plus = [1/(2*num_learned_terms + 1) for i=1:num_learned_terms]
+        x_minus = [1/(2*num_learned_terms + 1) for i=1:num_learned_terms]
+        y = 1/(2*num_learned_terms + 1)
+        η = η_init
+
+        est = l1_bound .* (x_plus - x_minus)
+        exp_arg = nodal_stat_learned * est + nodal_stat_fixed * fixed_couplings
+        obj = sum((samples[k,1]/num_samples)*exp(-exp_arg[k]) for k=1:num_conf)
+        grad = ones(num_learned_terms)
+
+        best_est = est
+        best_obj = obj
+
+        # Track objective
+        if return_objectives
+            spin_objective = [best_obj]
+        end
+
+
+
+        t = 1
+        while t <= max_steps && maximum(abs.(grad)) > grad_termination
+
+            # gradient step
+            grad = [l1_bound*sum((samples[k,1]/num_samples)*(-nodal_stat_learned[k,i])*exp(-exp_arg[k]) for k=1:num_conf) for i=1:num_learned_terms]
+            grad_obj = grad ./ obj
+            w_plus = x_plus .* exp.(-η .* grad_obj)
+            w_minus = x_minus .* exp.(η .* grad_obj)
+
+            # projection step
+            z = y + sum(w_plus + w_minus)
+            x_plus = w_plus ./ z
+            x_minus = w_minus ./ z
+            y = y/z
+            η = η * sqrt(t/(t+1))
+
+            # track lowest objective and estimate
+            est .= l1_bound .* (x_plus - x_minus)
+            exp_arg .= nodal_stat_learned * est + nodal_stat_fixed * fixed_couplings
+            obj = sum((samples[k,1]/num_samples)*exp(-exp_arg[k]) for k=1:num_conf)
+            if obj < best_obj
+                best_obj = obj
+                best_est .= est
+            end
+            # For debugging and plotting the objectives
+            if return_objectives
+                push!(spin_objective, obj)
+            end
+            t += 1
+        end
+
+        if t > max_steps
+            constraint_slack = l1_bound - sum(abs.(est))
+            @warn "Maximum steps reached for site $current_spin, max gradient=$(maximum(abs.(grad))), constraint slack = $constraint_slack "
+        end
+        reconstruction[current_spin,learned_neighbors[current_spin]] = deepcopy(best_est)
+        reconstruction[current_spin,fixed_neighbors[current_spin]] = deepcopy(fixed_couplings)
         if return_objectives
             objectives[current_spin] = spin_objective
         end

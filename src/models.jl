@@ -4,7 +4,7 @@ export FactorGraph, jsondata
 
 export ferromagnet_square_lattice, ferromagnet_3body_random
 
-export generate_neighbors
+export generate_neighbors, neighbor_array, find_term
 
 using StatsBase
 
@@ -372,18 +372,35 @@ end
 """
 For models with 2-body interactions, this returns an array neighbors
 such that neighbors[i] returns an array of site indices that interact
-with site i
+with site i.  If the model includes 1-body a one body field at site i,
+neighbors[i] contains i.
 """
 function neighbor_array(gm::FactorGraph{T}) where T <: Real
     @assert gm.order == 2
 
-    neighborhoods = generate_neighborhoods(gm)
     neighbors = [[] for site in 1:gm.variable_count]
     for (sites, weight) in gm.terms
         if length(sites) == 2
             push!(neighbors[sites[1]], sites[2])
             push!(neighbors[sites[2]], sites[1])
+        elseif length(sites) == 1
+            push!(neighbors[sites[1]], sites[1])
         end
     end
-    return neighbors
+    [sort(l) for l in neighbors]
+end
+
+function find_term(gm::FactorGraph{T}, term::Tuple{Int64,Int64}) where T <: Real
+
+    (i, j) = term
+    if i == j
+        return gm.terms[(i,)]
+    else
+        try
+            return gm.terms[(i, j)]
+        catch KeyError
+            return gm.terms[(j, i)]
+        end
+    end
+
 end
