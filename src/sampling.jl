@@ -126,18 +126,34 @@ function sample(gm::FactorGraph{T}, number_sample::Integer, replicates::Integer,
     return samples
 end
 
-function sample(gm::FactorGraph{T}, number_sample::Integer, sampler::Glauber) where T<: Real
+function sample(gm::FactorGraph{T}, number_sample::Integer, sampler::Glauber; sample_batch = 100000) where T<: Real
     if gm.alphabet != :spin
         error("sampling is only supported for spin FactorGraphs, given alphabet $(gm.alphabet)")
     end
     equilibrated_state = gibbsMCsampler(gm, sampler.initial_steps, sampler.initial_state)
 
-    raw_sample = sample_trajectory(gm, number_sample, sampler.spacing_steps, equilibrated_state)
+    # If we need fewer than the batch just do a single run
+    if number_sample < sample_batch
+        raw_sample = sample_trajectory(gm, number_sample, sampler.spacing_steps, equilibrated_state)
 
+        raw_binning = countmap(raw_sample[2:end])
+    # otherwise, first do a single run at batch size
+    else
+        raw_sample = sample_trajectory(gm, sample_batch, sampler.spacing_steps, equilibrated_state)
+        current_samples = sample_batch
+        raw_binning = countmap(raw_sample[2:end])
+        # Then do runs of min(batch_size, number_sample - current_samples)
+        while current_samples < number_sample
+            batch_size = min(sample_batch, number_sample - current_samples)
+            # Be sure to initialize at the last state of the previous run
+            raw_sample = sample_trajectory(gm, batch_size, sampler.spacing_steps, raw_sample[end])
+            current_samples += batch_size
 
-    raw_binning = countmap(raw_sample)
+            raw_binning = add_counts!(raw_sample[2:end])
+        end
+    end
+
     spin_sample = [vcat(raw_binning[state], state) for state in keys(raw_binning)]
-
     return hcat(spin_sample...)'
 end
 
