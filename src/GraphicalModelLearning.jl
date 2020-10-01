@@ -484,7 +484,7 @@ function learn_structured(learned::FactorGraph{T1}, samples::Array{T2,2}, formul
         while t <= max_steps && maximum(abs.(grad)) > grad_termination
 
             # gradient step
-            grad = [l1_bound*sum((samples[k,1]/num_samples)*(-nodal_stat_learned[k,i])*exp(-exp_arg[k]) for k=1:num_conf) for i=1:num_learned_terms]
+            grad = [sum((samples[k,1]/num_samples)*(-nodal_stat_learned[k,i])*exp(-exp_arg[k]) for k=1:num_conf) for i=1:num_learned_terms]
             grad_obj = grad ./ obj
             w_plus = x_plus .* exp.(-η .* grad_obj)
             w_minus = x_minus .* exp.(η .* grad_obj)
@@ -584,7 +584,7 @@ function learn_structured(learned::FactorGraph{T1}, fixed::FactorGraph{T2}, samp
         while t <= max_steps && maximum(abs.(grad)) > grad_termination
 
             # gradient step
-            grad = [l1_bound*sum((samples[k,1]/num_samples)*(-nodal_stat_learned[k,i])*exp(-exp_arg[k]) for k=1:num_conf) for i=1:num_learned_terms]
+            grad = [sum((samples[k,1]/num_samples)*(-nodal_stat_learned[k,i])*exp(-exp_arg[k]) for k=1:num_conf) for i=1:num_learned_terms]
             grad_obj = grad ./ obj
             w_plus = x_plus .* exp.(-η .* grad_obj)
             w_minus = x_minus .* exp.(η .* grad_obj)

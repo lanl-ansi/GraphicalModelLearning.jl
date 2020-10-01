@@ -132,25 +132,21 @@ function sample(gm::FactorGraph{T}, number_sample::Integer, sampler::Glauber; sa
     end
     equilibrated_state = gibbsMCsampler(gm, sampler.initial_steps, sampler.initial_state)
 
-    # If we need fewer than the batch just do a single run
-    if number_sample < sample_batch
-        raw_sample = sample_trajectory(gm, number_sample, sampler.spacing_steps, equilibrated_state)
+    # Initial Run
+    batch_size = min(sample_batch, number_sample)
 
-        raw_binning = countmap(raw_sample[2:end])
-    # otherwise, first do a single run at batch size
-    else
-        raw_sample = sample_trajectory(gm, sample_batch, sampler.spacing_steps, equilibrated_state)
-        current_samples = sample_batch
-        raw_binning = countmap(raw_sample[2:end])
-        # Then do runs of min(batch_size, number_sample - current_samples)
-        while current_samples < number_sample
-            batch_size = min(sample_batch, number_sample - current_samples)
-            # Be sure to initialize at the last state of the previous run
-            raw_sample = sample_trajectory(gm, batch_size, sampler.spacing_steps, raw_sample[end])
-            current_samples += batch_size
+    raw_sample = sample_trajectory(gm, batch_size, sampler.spacing_steps, equilibrated_state)
+    raw_binning = countmap(raw_sample[2:end])
+    current_sample = batch_size
+    
+    # Then do runs of min(batch_size, number_sample - current_samples)
+    while current_samples < number_sample
+        batch_size = min(sample_batch, number_sample - current_samples)
+        # Be sure to initialize at the last state of the previous run
+        raw_sample = sample_trajectory(gm, batch_size, sampler.spacing_steps, raw_sample[end])
+        current_samples += batch_size
 
-            raw_binning = add_counts!(raw_sample[2:end])
-        end
+        raw_binning = add_counts!(raw_sample[2:end])
     end
 
     spin_sample = [vcat(raw_binning[state], state) for state in keys(raw_binning)]
