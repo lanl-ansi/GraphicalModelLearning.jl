@@ -126,27 +126,35 @@ function sample(gm::FactorGraph{T}, number_sample::Integer, replicates::Integer,
     return samples
 end
 
-function sample(gm::FactorGraph{T}, number_sample::Integer, sampler::Glauber; sample_batch = 100000) where T<: Real
+function sample(gm::FactorGraph{T},
+                number_sample::Integer,
+                sampler::Glauber;
+                sample_batch::Int64 = 100000,
+                condition::Function=true_condition) where T<: Real
     if gm.alphabet != :spin
         error("sampling is only supported for spin FactorGraphs, given alphabet $(gm.alphabet)")
     end
+
     equilibrated_state = gibbsMCsampler(gm, sampler.initial_steps, sampler.initial_state)
+    while !condition(equilibrated_state)
+        equilibrated_state = gibbsMCsampler(gm, sampler.initial_steps, sampler.initial_state)
+    end
 
     # Initial Run
     batch_size = min(sample_batch, number_sample)
 
-    raw_sample = sample_trajectory(gm, batch_size, sampler.spacing_steps, equilibrated_state)
+    raw_sample = sample_trajectory(gm, batch_size, sampler.spacing_steps, equilibrated_state, condition=condition)
     raw_binning = countmap(raw_sample[2:end])
-    current_sample = batch_size
-    
+    current_samples= batch_size
+
     # Then do runs of min(batch_size, number_sample - current_samples)
     while current_samples < number_sample
         batch_size = min(sample_batch, number_sample - current_samples)
         # Be sure to initialize at the last state of the previous run
-        raw_sample = sample_trajectory(gm, batch_size, sampler.spacing_steps, raw_sample[end])
+        raw_sample = sample_trajectory(gm, batch_size, sampler.spacing_steps, raw_sample[end], condition=condition)
         current_samples += batch_size
 
-        raw_binning = add_counts!(raw_sample[2:end])
+        raw_binning = addcounts!(raw_binning, raw_sample[2:end])
     end
 
     spin_sample = [vcat(raw_binning[state], state) for state in keys(raw_binning)]
@@ -193,10 +201,15 @@ function gibbsMCsampler(gm::FactorGraph{T}, numsteps::Integer, initial_spin_stat
     current_state
 end
 
+function true_condition(state::Array{T, 1}) where T <: Integer
+    true
+end
+
 function sample_trajectory(gm::FactorGraph,
                            num_samples::Int,
                            sample_steps::Int,
-                           initial_state::Array{Int8, 1})
+                           initial_state::Array{Int8, 1};
+                           condition::Function=true_condition)
 
     trajectory = [initial_state for i in 1:num_samples+1]
     step_idx = 1
@@ -204,8 +217,10 @@ function sample_trajectory(gm::FactorGraph,
 
     while step_idx <= num_samples
         trajectory[step_idx+1] = gibbsMCsampler(gm, sample_steps, state)
-        state = deepcopy(trajectory[step_idx+1])
-        step_idx += 1
+        if condition(trajectory[step_idx+1])
+            state = deepcopy(trajectory[step_idx+1])
+            step_idx += 1
+        end
     end
     return trajectory
 end
