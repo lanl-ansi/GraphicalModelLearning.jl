@@ -2,9 +2,9 @@
 
 export FactorGraph, jsondata
 
-export ferromagnet_square_lattice, ferromagnet_3body_random
+export ferromagnet_square_lattice, ferromagnet_3body_random, spinglass_3body_random
 
-export generate_neighbors, neighbor_array, find_term
+export generate_neighborhoods, neighbor_array, find_term
 
 using StatsBase
 
@@ -340,6 +340,24 @@ function ferromagnet_3body_random(num_sites::Int64, num_terms::Int64, beta::Floa
     terms_sample = StatsBase.sample(all_possible_terms, num_terms, replace=false)
     for (site1, site2, site3) in terms_sample
         terms[(site1, site2, site3)] = beta
+    end
+    FactorGraph(terms)
+
+end
+
+function spinglass_3body_random(num_sites::Int64, num_terms::Int64, beta::Float64)
+    terms = Dict{Tuple, Float64}()
+    all_possible_terms = []
+    for site1 = 1:num_sites-2
+        for site2 = site1+1:num_sites-1
+            for site3 = site2+1:num_sites
+                push!(all_possible_terms, (site1, site2, site3))
+            end
+        end
+    end
+    terms_sample = StatsBase.sample(all_possible_terms, num_terms, replace=false)
+    for (site1, site2, site3) in terms_sample
+        terms[(site1, site2, site3)] = rand([beta, -beta])
     end
     FactorGraph(terms)
 

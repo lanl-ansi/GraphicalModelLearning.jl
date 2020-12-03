@@ -1,8 +1,8 @@
 module GraphicalModelLearning
 
-export learn, learn_structured, inverse_ising, learn_old
+export learn, learn_structured, learn_higherorder_structured, inverse_ising, learn_old, learn_fields
 
-export GMLFormulation, RISE, logRISE, RPLE, RISEA, multiRISE
+export GMLFormulation, RISE, logRISE, RPLE, RISEA, multiRISE, ISE
 export GMLMethod, NLP, EntropicDescent
 
 using JuMP
@@ -55,6 +55,11 @@ end
 # default values
 RPLE() = RPLE(0.2, true)
 
+mutable struct ISE <: GMLFormulation
+    symmetrization::Bool
+end
+# default values
+ISE() = ISE(true)
 
 abstract type GMLMethod end
 
@@ -344,7 +349,7 @@ function learn(samples::Array{T,2}, formulation::RPLE, method::NLP) where T <: R
 end
 
 
-function learn(samples::Array{T,2}, formulation::RISE, method::EntropicDescent; return_objectives=false) where T <: Real
+function learn(samples::Array{T,2}, formulation::ISE, method::EntropicDescent; return_objectives=false) where T <: Real
     num_conf, num_spins, num_samples = data_info(samples)
 
     #lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
@@ -436,7 +441,7 @@ function learn(samples::Array{T,2}, formulation::RISE, method::EntropicDescent; 
     end
 end
 
-function learn_structured(learned::FactorGraph{T1}, samples::Array{T2,2}, formulation::RISE, method::EntropicDescent; return_objectives=false) where T1 <: Real where T2 <: Real
+function learn_structured(learned::FactorGraph{T1}, samples::Array{T2,2}, formulation::ISE, method::EntropicDescent; return_objectives=false) where T1 <: Real where T2 <: Real
     num_conf, num_spins, num_samples = data_info(samples)
 
     #lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
@@ -532,7 +537,7 @@ function learn_structured(learned::FactorGraph{T1}, samples::Array{T2,2}, formul
 end
 
 
-function learn_structured(learned::FactorGraph{T1}, fixed::FactorGraph{T2}, samples::Array{T3,2}, formulation::RISE, method::EntropicDescent; return_objectives=false) where T1 <: Real where T2 <: Real where T3 <: Real
+function learn_structured(learned::FactorGraph{T1}, fixed::FactorGraph{T2}, samples::Array{T3,2}, formulation::ISE, method::EntropicDescent; return_objectives=false) where T1 <: Real where T2 <: Real where T3 <: Real
     num_conf, num_spins, num_samples = data_info(samples)
 
     #lambda = formulation.regularizer*sqrt(log((num_spins^2)/0.05)/num_samples)
@@ -630,6 +635,286 @@ function learn_structured(learned::FactorGraph{T1}, fixed::FactorGraph{T2}, samp
     else
         return reconstruction
     end
+end
+
+"""
+Entropic Descent optimizer on the interaction screening objective with a
+constraint for models of arbitrary order.  This will eventually replace
+the functions above.  Rather than a matrix, this will output a FactorGraph
+with the same structure as the input 'learned'.  The output factor graph
+will have all terms with sorted indices which is not required of 'learned'.
+At the moment, only the symmetrized option is permitted.
+
+"""
+function learn_higherorder_structured(learned::FactorGraph{T1}, samples::Array{T2,2}, formulation::ISE, method::EntropicDescent; return_objectives=false) where T1 <: Real where T2 <: Real
+    num_conf, num_spins, num_samples = data_info(samples)
+
+    @assert formulation.symmetrization == true
+
+    max_steps = method.max_steps
+    η_init = method.init_stepsize
+    l1_bound = method.l1_bound
+    grad_termination = method.grad_termination
+
+    learned_neighbors = generate_neighborhoods(learned)
+
+    @info "Running Entropic descent: $max_steps steps, $l1_bound element bound"
+
+    reconstruction = Dict{Tuple, Float64}()
+    if return_objectives
+        objectives = Vector{Array{Float64}}(undef, num_spins)
+    end
+
+    for current_spin in keys(learned_neighbors)
+        num_learned_terms = length(learned_neighbors[current_spin])
+
+        # contains spin products of every interaction, ordered by the structure
+        # of learned_neighbors[current_spin]
+        nodal_stat_learned = [prod(samples[k, 1 .+ interacting]) for k in 1:num_conf, (interacting, w) in learned_neighbors[current_spin]]
+
+        #Initialize
+        x_plus = [1/(2*num_learned_terms + 1) for i=1:num_learned_terms]
+        x_minus = [1/(2*num_learned_terms + 1) for i=1:num_learned_terms]
+        y = 1/(2*num_learned_terms + 1)
+        η = η_init
+
+        est = l1_bound .* (x_plus - x_minus)
+        exp_arg = nodal_stat_learned * est
+        obj = sum((samples[k,1]/num_samples)*exp(-exp_arg[k]) for k=1:num_conf)
+        grad = ones(num_learned_terms)
+
+        best_est = est
+        best_obj = obj
+
+        # Track objective
+        if return_objectives
+            spin_objective = [best_obj]
+        end
+
+
+
+        t = 1
+        while t <= max_steps && maximum(abs.(grad)) > grad_termination
+
+            # gradient step
+            grad = [sum((samples[k,1]/num_samples)*(-nodal_stat_learned[k,i])*exp(-exp_arg[k]) for k=1:num_conf) for i=1:num_learned_terms]
+            grad_obj = grad ./ obj
+            w_plus = x_plus .* exp.(-η .* grad_obj)
+            w_minus = x_minus .* exp.(η .* grad_obj)
+
+            # projection step
+            z = y + sum(w_plus + w_minus)
+            x_plus = w_plus ./ z
+            x_minus = w_minus ./ z
+            y = y/z
+            η = η * sqrt(t/(t+1))
+
+            # track lowest objective and estimate
+            est .= l1_bound .* (x_plus - x_minus)
+            exp_arg .= nodal_stat_learned * est
+            obj = sum((samples[k,1]/num_samples)*exp(-exp_arg[k]) for k=1:num_conf)
+            if obj < best_obj
+                best_obj = obj
+                best_est .= est
+            end
+            # For debugging and plotting the objectives
+            if return_objectives
+                push!(spin_objective, obj)
+            end
+            t += 1
+        end
+
+        if t > max_steps
+            constraint_slack = l1_bound - sum(abs.(est))
+            @warn "Maximum steps reached for site $current_spin, max gradient=$(maximum(abs.(grad))), constraint slack = $constraint_slack "
+        end
+
+        # Single site estimates are first accumulated in a dictionary and then
+        # this is merged into the total reconstruction.  After, each interaction
+        # in the total reconstruction is divided by the order of the interaction
+        # to symmetrize over the reconstruction.
+        site_reconstruction = Dict{Tuple, Float64}()
+        for (int_idx, (interacting, w)) in enumerate(learned_neighbors[current_spin])
+            site_reconstruction[Tuple(sort(interacting))] = best_est[int_idx]
+        end
+        merge!(+, reconstruction, site_reconstruction)
+        if return_objectives
+            objectives[current_spin] = spin_objective
+        end
+    end
+
+    if formulation.symmetrization
+        for (interaction, weight) in reconstruction
+            reconstruction[interaction] = weight / length(interaction)
+        end
+    end
+    if return_objectives
+        return reconstruction, objectives
+    else
+        return FactorGraph(reconstruction)
+    end
+end
+
+function learn_higherorder_structured(learned::FactorGraph{T1}, fixed::FactorGraph{T2}, samples::Array{T3,2}, formulation::ISE, method::EntropicDescent; return_objectives=false) where T1 <: Real where T2 <: Real where T3 <: Real
+    num_conf, num_spins, num_samples = data_info(samples)
+
+    @assert formulation.symmetrization == true
+
+    max_steps = method.max_steps
+    η_init = method.init_stepsize
+    l1_bound = method.l1_bound
+    grad_termination = method.grad_termination
+
+    learned_neighbors = generate_neighborhoods(learned)
+    fixed_neighbors = generate_neighborhoods(fixed)
+
+    @info "Running Entropic descent: $max_steps steps, $l1_bound element bound"
+
+    reconstruction = Dict{Tuple, Float64}()
+    if return_objectives
+        objectives = Vector{Array{Float64}}(undef, num_spins)
+    end
+
+    for current_spin in keys(learned_neighbors)
+        num_learned_terms = length(learned_neighbors[current_spin])
+
+        # contains spin products of every interaction, ordered by the structure
+        # of learned_neighbors[current_spin]
+        nodal_stat_learned = [prod(samples[k, 1 .+ interacting]) for k in 1:num_conf, (interacting, w) in learned_neighbors[current_spin]]
+        nodal_stat_fixed  = [prod(samples[k, 1 .+ interacting])  for k in 1:num_conf , (interacting, w) in fixed_neighbors[current_spin]]
+
+        fixed_couplings = [w for (interacting, w) in fixed_neighbors[current_spin]]
+
+        #Initialize
+        x_plus = [1/(2*num_learned_terms + 1) for i=1:num_learned_terms]
+        x_minus = [1/(2*num_learned_terms + 1) for i=1:num_learned_terms]
+        y = 1/(2*num_learned_terms + 1)
+        η = η_init
+
+        est = l1_bound .* (x_plus - x_minus)
+        exp_arg = nodal_stat_learned * est + nodal_stat_fixed * fixed_couplings
+        obj = sum((samples[k,1]/num_samples)*exp(-exp_arg[k]) for k=1:num_conf)
+        grad = ones(num_learned_terms)
+
+        best_est = est
+        best_obj = obj
+
+        # Track objective
+        if return_objectives
+            spin_objective = [best_obj]
+        end
+
+
+
+        t = 1
+        while t <= max_steps && maximum(abs.(grad)) > grad_termination
+
+            # gradient step
+            grad = [sum((samples[k,1]/num_samples)*(-nodal_stat_learned[k,i])*exp(-exp_arg[k]) for k=1:num_conf) for i=1:num_learned_terms]
+            grad_obj = grad ./ obj
+            w_plus = x_plus .* exp.(-η .* grad_obj)
+            w_minus = x_minus .* exp.(η .* grad_obj)
+
+            # projection step
+            z = y + sum(w_plus + w_minus)
+            x_plus = w_plus ./ z
+            x_minus = w_minus ./ z
+            y = y/z
+            η = η * sqrt(t/(t+1))
+
+            # track lowest objective and estimate
+            est .= l1_bound .* (x_plus - x_minus)
+            exp_arg .= nodal_stat_learned * est + nodal_stat_fixed * fixed_couplings
+            obj = sum((samples[k,1]/num_samples)*exp(-exp_arg[k]) for k=1:num_conf)
+            if obj < best_obj
+                best_obj = obj
+                best_est .= est
+            end
+            # For debugging and plotting the objectives
+            if return_objectives
+                push!(spin_objective, obj)
+            end
+            t += 1
+        end
+
+        if t > max_steps
+            constraint_slack = l1_bound - sum(abs.(est))
+            @warn "Maximum steps reached for site $current_spin, max gradient=$(maximum(abs.(grad))), constraint slack = $constraint_slack "
+        end
+
+
+        # Single site estimates are first accumulated in a dictionary and then
+        # this is merged into the total reconstruction.  After, each interaction
+        # in the total reconstruction is divided by the order of the interaction
+        # to symmetrize over the reconstruction.
+        site_reconstruction = Dict{Tuple, Float64}()
+        for (int_idx, (interacting, w)) in enumerate(learned_neighbors[current_spin])
+            site_reconstruction[Tuple(sort(interacting))] = best_est[int_idx]
+        end
+        merge!(+, reconstruction, site_reconstruction)
+
+        if return_objectives
+            objectives[current_spin] = spin_objective
+        end
+    end
+
+    if formulation.symmetrization
+        for (interaction, weight) in reconstruction
+            reconstruction[interaction] = weight / length(interaction)
+        end
+    end
+    merge!(+, reconstruction, fixed.terms)
+
+    if return_objectives
+        return reconstruction, objectives
+    else
+        return FactorGraph(reconstruction)
+    end
+end
+
+
+"""
+Takes advantage of an analytical solution to the fields, or one-body terms
+in a model and avoids any need for an optimization procedure.  In this case,
+a model specifying all couplings is given to the system and the interation
+screening estimator is used only to infer the local fields. The model given
+should not have any local field terms.
+"""
+function learn_fields(model::FactorGraph{T1}, samples::Array{T2,2}, formulation::ISE, max_field::Float64) where T1 <: Real where T2 <: Real
+    num_conf, num_spins, num_samples = data_info(samples)
+
+    neighbors = generate_neighborhoods(model)
+
+    reconstruction = Dict{Tuple, Float64}()
+
+    for current_spin = 1:num_spins
+
+        pos_conf = 0
+        neg_conf = 0
+        for k in 1:num_conf
+            if samples[k, 1+current_spin] == 1
+                pos_conf += samples[k, 1]*exp(sum([-w*prod(samples[k, 1 .+ interacting]) for (interacting, w) in neighbors[current_spin]]))
+            elseif samples[k, 1+current_spin] == -1
+                neg_conf += samples[k, 1]*exp(sum([-w*prod(samples[k, 1 .+ interacting]) for (interacting, w) in neighbors[current_spin]]))
+            else
+                @error "Non-spin value found at sample $k spin $current_spin"
+            end
+        end
+        if pos_conf == 0
+            reconstruction[(current_spin,)] = -max_field
+            @warn "Spin $current_spin set to -1*maximum field"
+        elseif neg_conf == 0
+            reconstruction[(current_spin,)] = max_field
+            @warn "Spin $current_spin set to maximum field"
+        else
+            reconstruction[(current_spin,)] = 1/2*log(pos_conf / neg_conf)
+        end
+
+
+    end
+
+    return FactorGraph(reconstruction)
+
 end
 
 end
