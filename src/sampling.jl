@@ -1,4 +1,4 @@
-export sample
+export sample, sample_neighborhood
 
 export GMSampler, Gibbs, Glauber
 
@@ -131,7 +131,7 @@ function sample(gm::FactorGraph{T},
                 number_sample::Integer,
                 sampler::Glauber;
                 replace::Bool = true,
-                sample_batch::Int64 = 100000,
+                sample_batch::Int64 = 10000,
                 condition::Function=true_condition) where T<: Real
     if gm.alphabet != :spin
         error("sampling is only supported for spin FactorGraphs. Given alphabet $(gm.alphabet)")
@@ -343,4 +343,70 @@ function sample_trajectory(gm::FactorGraph,
         end
     end
     return trajectory
+end
+
+"""
+For learning a structured model, we only require the values of the
+spin products over interactions for each site.  As these will
+vary over a much smaller space than the full configuration, memory
+can be saved by storing samples as histograms of interactions for each site.
+The dictionary generate neighbors provides ordering of the interactions.  The
+output is a dictionary with keys over spin indices and values containing a dictionary
+of counts (as returned by countmap).
+"""
+function sample_neighborhood(gm::FactorGraph{T},
+                            number_sample::Integer,
+                            sampler::Glauber;
+                            replace::Bool = true,
+                            sample_batch::Int64 = 100000,
+                            condition::Function=true_condition) where T<: Real
+    if gm.alphabet != :spin
+        error("sampling is only supported for spin FactorGraphs. Given alphabet $(gm.alphabet)")
+    end
+
+    neighborhoods = generate_neighborhoods(gm)
+
+    equilibrated_state = gibbsMCsampler(gm, sampler.initial_steps, sampler.initial_state, replace=replace)
+
+    # Possibly problematic.  If we end up messing with conditions more then
+    # should fix so that condition is attached to the individual steps
+    while !condition(equilibrated_state)
+        equilibrated_state = gibbsMCsampler(gm, sampler.initial_steps, sampler.initial_state, replace=replace)
+    end
+
+    # Initial Run
+    batch_size = min(sample_batch, number_sample)
+
+    if sampler.spacing_steps==1
+        raw_sample = sample_trajectory(gm, batch_size, equilibrated_state, replace=replace, condition=condition)
+    else
+        raw_sample = sample_trajectory(gm, batch_size, sampler.spacing_steps, equilibrated_state, replace=replace, condition=condition)
+    end
+
+    neighbor_binning = Dict{Int, Dict{Vector{Int}, Int}}()
+    for spin in keys(neighborhoods)
+        conf_sample = [[prod(state[interacting]) for (interacting, w) in neighborhoods[spin]] for state in raw_sample[2:end]]
+        neighbor_binning[spin] = countmap(conf_sample)
+    end
+
+    current_samples= batch_size
+
+    # Then do runs of min(batch_size, number_sample - current_samples)
+    while current_samples < number_sample
+        batch_size = min(sample_batch, number_sample - current_samples)
+        # Be sure to initialize at the last state of the previous run
+        if sampler.spacing_steps==1
+            raw_sample = sample_trajectory(gm, batch_size, raw_sample[end], replace=replace, condition=condition)
+        else
+            raw_sample = sample_trajectory(gm, batch_size, sampler.spacing_steps, raw_sample[end], replace=replace, condition=condition)
+        end
+        current_samples += batch_size
+
+        for spin in keys(neighborhoods)
+            conf_sample = [[prod(state[interacting]) for (interacting, w) in neighborhoods[spin]] for state in raw_sample[2:end]]
+             addcounts!(neighbor_binning[spin], conf_sample)
+        end
+    end
+    # returns array with counts in first column followed by states in rows
+    return neighbor_binning
 end
