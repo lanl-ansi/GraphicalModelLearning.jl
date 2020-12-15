@@ -877,7 +877,7 @@ learn a structured model for the case where we have used structured
 sampling
 """
 function learn_higherorder_structured(learned::FactorGraph{T1},
-                                      samples::Dict{Int, Dict{Vector{Int}, Int}},
+                                      samples::Dict{Int64, Dict{Vector{Int8}, Int64}},
                                       formulation::ISE,
                                       method::EntropicDescent;
                                       return_objectives=false) where T1 <: Real

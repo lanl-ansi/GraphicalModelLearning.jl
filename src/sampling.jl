@@ -1,4 +1,4 @@
-export sample, sample_neighborhood
+export sample, sample_neighborhood, minimal_sample_neighborhood
 
 export GMSampler, Gibbs, Glauber
 
@@ -128,7 +128,7 @@ function sample(gm::FactorGraph{T}, number_sample::Integer, replicates::Integer,
 end
 
 function sample(gm::FactorGraph{T},
-                number_sample::Integer,
+                number_sample::Int64,
                 sampler::Glauber;
                 replace::Bool = true,
                 sample_batch::Int64 = 10000,
@@ -176,10 +176,8 @@ end
 
 
 function glauber_step!(state::Array{Int8, 1},
-                     spin::Int,
-                     neighborhood::Array{Tuple{Array, Float64}, 1})
-
-    spin_state = state[spin]
+                     spin::Int64,
+                     neighborhood::Array{Tuple{Array{Int64, 1}, Float64}, 1})
 
     site_contrib = 0.
     for (term_spins, w) in neighborhood
@@ -187,52 +185,37 @@ function glauber_step!(state::Array{Int8, 1},
     end
 
     weight_noflip = exp(site_contrib)
-    weight_flip = 1/weight_noflip
-    new_spin = StatsBase.sample([spin_state, -spin_state], StatsBase.Weights([weight_noflip, weight_flip]))
-    state[spin] = new_spin
+    #state[spin] = StatsBase.sample([state[spin], -state[spin]], StatsBase.Weights([weight_noflip, 1/weight_noflip]))
+    if rand() < (1 / (weight_noflip^2 + 1))
+        state[spin] = -state[spin]
+    end
 
-
-    @debug """
-           Proposing flip on spin $spin with value $spin_state
-           Found local contribution $site_contrib
-           Will remain in state with p∝$weight_noflip and
-                          flip  with p∝$weight_flip
-           New spin value is $new_spin_state
-           New state is $new_state
-           """
 end
 
 function glauber_step(state::Array{Int8, 1},
-                     spin::Int,
-                     neighborhood::Array{Tuple{Array, Float64}, 1})
-
-    spin_state = state[spin]
+                     spin::Int64,
+                     neighborhood::Array{Tuple{Array{Int64,1}, Float64}, 1})
 
     site_contrib = 0.
     for (term_spins, w) in neighborhood
         site_contrib += prod(state[term_spins])*w
     end
 
-    weight_noflip = exp(site_contrib)
-    weight_flip = 1/weight_noflip
-    new_spin_state = StatsBase.sample([spin_state, -spin_state], StatsBase.Weights([weight_noflip, weight_flip]))
     new_state = deepcopy(state)
-    new_state[spin] = new_spin_state
+    weight_noflip = exp(site_contrib)
+    if rand() < (1 / (weight_noflip^2 + 1)) # flip if rand is less than pflip
+        new_state[spin] = -state[spin]
+    end
 
+    # new_spin_state = StatsBase.sample([state[spin], -state[spin]], StatsBase.Weights([weight_noflip, 1/weight_noflip]))
+    # new_state = deepcopy(state)
+    # new_state[spin] = new_spin_state
 
-    @debug """
-           Proposing flip on spin $spin with value $spin_state
-           Found local contribution $site_contrib
-           Will remain in state with p∝$weight_noflip and
-                          flip  with p∝$weight_flip
-           New spin value is $new_spin_state
-           New state is $new_state
-           """
     return new_state
 end
 
 function gibbsMCsampler(gm::FactorGraph{T},
-                        numsteps::Integer,
+                        numsteps::Int64,
                         initial_spin_state::Array{Int8,1};
                         neighborhoods=nothing,
                         replace=true) where T <: Real
@@ -262,9 +245,9 @@ function gibbsMCsampler(gm::FactorGraph{T},
             end
         end
 
-        if haskey(neighborhoods, flipping_spin)
+        try
             glauber_step!(current_state, flipping_spin, neighborhoods[flipping_spin])
-        else
+        catch KeyError
             # If the spin is disconnected just randomize it
             current_state[flipping_spin] = rand([1, -1])
         end
@@ -278,23 +261,21 @@ function true_condition(state::Array{T, 1}) where T <: Integer
 end
 
 function sample_trajectory(gm::FactorGraph,
-                           num_samples::Int,
-                           sample_steps::Int,
+                           num_samples::Int64,
+                           sample_steps::Int64,
                            initial_state::Array{Int8, 1};
                            replace::Bool=true,
                            condition::Function=true_condition)
 
     neighborhoods = generate_neighborhoods(gm)
 
-    trajectory = [copy(initial_state) for i in 1:num_samples+1]
+    trajectory = fill(initial_state, num_samples+1)
 
     step_idx = 1
-    state = initial_state
 
     while step_idx <= num_samples
-        trajectory[step_idx+1] = gibbsMCsampler(gm, sample_steps, state, replace=replace, neighborhoods=neighborhoods)
+        trajectory[step_idx+1] = gibbsMCsampler(gm, sample_steps, trajectory[step_idx], replace=replace, neighborhoods=neighborhoods)
         if condition(trajectory[step_idx+1])
-            state = deepcopy(trajectory[step_idx+1])
             step_idx += 1
         end
     end
@@ -302,14 +283,14 @@ function sample_trajectory(gm::FactorGraph,
 end
 
 function sample_trajectory(gm::FactorGraph,
-                           num_samples::Int,
+                           num_samples::Int64,
                            initial_state::Array{Int8, 1};
                            replace::Bool=true,
                            condition::Function=true_condition)
 
     neighborhoods = generate_neighborhoods(gm)
 
-    trajectory = [copy(initial_state) for i in 1:num_samples+1]
+    trajectory = fill(initial_state, num_samples+1)
     # If not sampling with replacement, iterate over a shuffled list of spins
     if !replace
         sampling_indices = shuffle(1:gm.variable_count)
@@ -329,16 +310,15 @@ function sample_trajectory(gm::FactorGraph,
                 sampling_indices = shuffle(1:gm.variable_count)
             end
         end
-        if haskey(neighborhoods, flipping_spin)
-            trajectory[step_idx+1] = glauber_step(state, flipping_spin, neighborhoods[flipping_spin])
-        else
+        try
+            trajectory[step_idx+1] = glauber_step(trajectory[step_idx], flipping_spin, neighborhoods[flipping_spin])
+        catch KeyError
             # If the spin is disconnected just randomize it
-            trajectory[step_idx+1] = copy(state)
+            trajectory[step_idx+1] = copy(trajectory[step_idx])
             trajectory[step_idx+1][flipping_spin] = rand([1, -1])
         end
 
         if condition(trajectory[step_idx+1])
-            state = trajectory[step_idx+1]
             step_idx += 1
         end
     end
@@ -350,12 +330,12 @@ For learning a structured model, we only require the values of the
 spin products over interactions for each site.  As these will
 vary over a much smaller space than the full configuration, memory
 can be saved by storing samples as histograms of interactions for each site.
-The dictionary generate neighbors provides ordering of the interactions.  The
+The dictionary from generate_neighbors provides ordering of the interactions.  The
 output is a dictionary with keys over spin indices and values containing a dictionary
 of counts (as returned by countmap).
 """
 function sample_neighborhood(gm::FactorGraph{T},
-                            number_sample::Integer,
+                            number_sample::Int64,
                             sampler::Glauber;
                             replace::Bool = true,
                             sample_batch::Int64 = 100000,
@@ -383,7 +363,7 @@ function sample_neighborhood(gm::FactorGraph{T},
         raw_sample = sample_trajectory(gm, batch_size, sampler.spacing_steps, equilibrated_state, replace=replace, condition=condition)
     end
 
-    neighbor_binning = Dict{Int, Dict{Vector{Int}, Int}}()
+    neighbor_binning = Dict{Int64, Dict{Vector{Int8}, Int64}}()
     for spin in keys(neighborhoods)
         conf_sample = [[prod(state[interacting]) for (interacting, w) in neighborhoods[spin]] for state in raw_sample[2:end]]
         neighbor_binning[spin] = countmap(conf_sample)
@@ -396,16 +376,67 @@ function sample_neighborhood(gm::FactorGraph{T},
         batch_size = min(sample_batch, number_sample - current_samples)
         # Be sure to initialize at the last state of the previous run
         if sampler.spacing_steps==1
-            raw_sample = sample_trajectory(gm, batch_size, raw_sample[end], replace=replace, condition=condition)
+            raw_sample .= sample_trajectory(gm, batch_size, raw_sample[end], replace=replace, condition=condition)
         else
-            raw_sample = sample_trajectory(gm, batch_size, sampler.spacing_steps, raw_sample[end], replace=replace, condition=condition)
+            raw_sample .= sample_trajectory(gm, batch_size, sampler.spacing_steps, raw_sample[end], replace=replace, condition=condition)
         end
         current_samples += batch_size
 
         for spin in keys(neighborhoods)
-            conf_sample = [[prod(state[interacting]) for (interacting, w) in neighborhoods[spin]] for state in raw_sample[2:end]]
-             addcounts!(neighbor_binning[spin], conf_sample)
+            addcounts!(neighbor_binning[spin], [[prod(state[interacting]) for (interacting, w) in neighborhoods[spin]] for state in raw_sample[2:end]])
         end
+    end
+    # returns array with counts in first column followed by states in rows
+    return neighbor_binning
+end
+
+function minimal_sample_neighborhood(gm::FactorGraph{T},
+                            number_sample::Int64,
+                            sampler::Glauber;
+                            replace::Bool = true) where T<: Real
+    if gm.alphabet != :spin
+        error("sampling is only supported for spin FactorGraphs. Given alphabet $(gm.alphabet)")
+    end
+
+    neighborhoods = generate_neighborhoods(gm)
+
+    state = gibbsMCsampler(gm, sampler.initial_steps, sampler.initial_state, replace=replace)
+
+    # Initial Run
+    neighbor_binning = Dict{Int64, Dict{Vector{Int8}, Int64}}()
+    for spin in keys(neighborhoods)
+        conf_sample = [[state[interacting] for (interacting, w) in neighborhoods[spin]]]
+        neighbor_binning[spin] = countmap(conf_sample)
+    end
+    current_samples = 1
+
+    if !replace
+        sampling_indices = shuffle(1:gm.variable_count)
+    end
+    # Then do runs of min(batch_size, number_sample - current_samples)
+    while current_samples < number_sample
+        if replace
+            flipping_spin = rand(1:gm.variable_count)
+        else
+            spin_idx = ((current_samples-1) % gm.variable_count) + 1
+            flipping_spin = sampling_indices[spin_idx]
+            # If we've iterated through all of them, shuffle again
+            if spin_idx == gm.variable_count
+                sampling_indices = shuffle(1:gm.variable_count)
+            end
+        end
+
+        try
+            glauber_step!(state, flipping_spin, neighborhoods[flipping_spin])
+        catch KeyError
+            # If the spin is disconnected just randomize it
+            current_state[flipping_spin] = rand([1, -1])
+        end
+
+        for spin in keys(neighborhoods)
+            addcounts!(neighbor_binning[spin], [[state[interacting] for (interacting, w) in neighborhoods[spin]]])
+        end
+        current_samples += 1
     end
     # returns array with counts in first column followed by states in rows
     return neighbor_binning

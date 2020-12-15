@@ -373,7 +373,7 @@ also contains i so that the energy contribution can be
 calculated directly.
 """
 function generate_neighborhoods(gm::FactorGraph{T}) where T <: Real
-    neighborhoods = Dict{Integer, Array{Tuple{Array{}, T}}}()
+    neighborhoods = Dict{Int64, Array{Tuple{Array{Int64,1}, T}}}()
 
     for (interacting, weight) in gm.terms
         for site in interacting
@@ -386,6 +386,8 @@ function generate_neighborhoods(gm::FactorGraph{T}) where T <: Real
     end
     return neighborhoods
 end
+
+function
 
 """
 For models with 2-body interactions, this returns an array neighbors
