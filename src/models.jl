@@ -387,7 +387,6 @@ function generate_neighborhoods(gm::FactorGraph{T}) where T <: Real
     return neighborhoods
 end
 
-function
 
 """
 For models with 2-body interactions, this returns an array neighbors
