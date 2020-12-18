@@ -1,4 +1,4 @@
-export sample, sample_neighborhood, minimal_sample_neighborhood
+export sample, sample_neighborhood, samplesubset
 
 export GMSampler, Gibbs, Glauber
 
@@ -185,7 +185,7 @@ function glauber_step!(state::Array{Int8, 1},
     end
 
     weight_noflip = exp(site_contrib)
-    #state[spin] = StatsBase.sample([state[spin], -state[spin]], StatsBase.Weights([weight_noflip, 1/weight_noflip]))
+    # state[spin] = StatsBase.sample([state[spin], -state[spin]], StatsBase.Weights([weight_noflip, 1/weight_noflip]))
     if rand() < (1 / (weight_noflip^2 + 1))
         state[spin] = -state[spin]
     end
@@ -390,131 +390,45 @@ function sample_neighborhood(gm::FactorGraph{T},
     return neighbor_binning
 end
 
-function minimal_sample_neighborhood(gm::FactorGraph{T},
-                            number_sample::Int64,
-                            sampler::Glauber;
-                            replace::Bool = true) where T<: Real
+function samplesubset(gm::FactorGraph{T},
+                       spin_list::Vector{Int64},
+                       num_samples::Int64,
+                       sampler::Glauber) where T <: Real
+
     if gm.alphabet != :spin
         error("sampling is only supported for spin FactorGraphs. Given alphabet $(gm.alphabet)")
     end
-
+    println("Beginning Sampling for spins")
+    println(spin_list)
     neighborhoods = generate_neighborhoods(gm)
 
-    state = gibbsMCsampler(gm, sampler.initial_steps, sampler.initial_state, replace=replace)
+    state = gibbsMCsampler(gm, sampler.initial_steps, sampler.initial_state, replace=false)
 
-    # Initial Run
-    neighbor_binning = Dict{Int64, Dict{Vector{Int8}, Int64}}()
-    for spin in keys(neighborhoods)
-        conf_sample = [[prod(state[interacting]) for (interacting, w) in neighborhoods[spin]]]
-        neighbor_binning[spin] = countmap(conf_sample)
-    end
-    current_samples = 1
+    sample_binning = countmap([state[spin_list]])
+    sampling_indices = shuffle(1:gm.variable_count)
 
-    if !replace
-        sampling_indices = shuffle(1:gm.variable_count)
-    end
-    # Then do runs of min(batch_size, number_sample - current_samples)
-    while current_samples < number_sample
-        if replace
-            flipping_spin = rand(1:gm.variable_count)
-        else
-            spin_idx = ((current_samples-1) % gm.variable_count) + 1
-            flipping_spin = sampling_indices[spin_idx]
-            # If we've iterated through all of them, shuffle again
-            if spin_idx == gm.variable_count
-                sampling_indices = shuffle(1:gm.variable_count)
-            end
+    println(state)
+    println(sample_binning)
+    for sampleindex=1:num_samples-1
+
+        spindex = ((sampleindex-1) % gm.variable_count) + 1
+        flipping_spin = sampling_indices[spindex]
+        # If we've iterated through all of them, shuffle again
+        if spindex == gm.variable_count
+            sampling_indices = shuffle(1:gm.variable_count)
         end
 
         try
-            glauber_step!(state, flipping_spin, neighborhoods[flipping_spin])
+            glauber_step!(state, spindex, neighborhoods[spindex])
         catch KeyError
             # If the spin is disconnected just randomize it
-            current_state[flipping_spin] = rand([1, -1])
+            state[spindex] = rand([1, -1])
         end
 
-        for spin in keys(neighborhoods)
-            addcounts!(neighbor_binning[spin], [[prod(state[interacting]) for (interacting, w) in neighborhoods[spin]]])
-        end
-        current_samples += 1
+        addcounts!(sample_binning, [state[spin_list]])
+
+        println(state)
+        println(sample_binning)
     end
-    # returns array with counts in first column followed by states in rows
-    return neighbor_binning
+    sample_binning
 end
-
-
-"""
-Creates an array for each spin containing the indices of its neighbors.
-This will be used in sampling to extract the relevant configurations
-in the neighborhood of each spin
-"""
-function neighborarray(gm::FactorGraph{T}) where T <: Real
-
-    neighbors = [[spin] for spin in 1:gm.variable_count]
-    for (term_spins, w) in gm.terms
-        for spin in term_spins
-            for neighborspin in term_spins
-                if !any(neighbors[spin] .== neighborspin)
-                    push!(neighbors[spin], neighborspin)
-                end
-            end
-        end
-    end
-    for arr in neighbors
-        sort!(arr)
-    end
-    neighbors
-end
-
-#
-# function minimal_sample_neighborhood2(gm::FactorGraph{T},
-#                             number_sample::Int64,
-#                             sampler::Glauber;
-#                             replace::Bool = true) where T<: Real
-#     if gm.alphabet != :spin
-#         error("sampling is only supported for spin FactorGraphs. Given alphabet $(gm.alphabet)")
-#     end
-#
-#     neighborhoods = generate_neighborhoods(gm)
-#
-#     state = gibbsMCsampler(gm, sampler.initial_steps, sampler.initial_state, replace=replace)
-#
-#     # Initial Run
-#     neighbor_binning = Dict{Int64, Dict{Vector{Int8}, Int64}}()
-#     for spin in keys(neighborhoods)
-#         conf_sample = [prod(state[interacting]) for (interacting, w) in neighborhoods[spin]]]
-#         neighbor_binning[spin] = countmap(conf_sample)
-#     end
-#     current_samples = 1
-#
-#     if !replace
-#         sampling_indices = shuffle(1:gm.variable_count)
-#     end
-#     # Then do runs of min(batch_size, number_sample - current_samples)
-#     while current_samples < number_sample
-#         if replace
-#             flipping_spin = rand(1:gm.variable_count)
-#         else
-#             spin_idx = ((current_samples-1) % gm.variable_count) + 1
-#             flipping_spin = sampling_indices[spin_idx]
-#             # If we've iterated through all of them, shuffle again
-#             if spin_idx == gm.variable_count
-#                 sampling_indices = shuffle(1:gm.variable_count)
-#             end
-#         end
-#
-#         try
-#             glauber_step!(state, flipping_spin, neighborhoods[flipping_spin])
-#         catch KeyError
-#             # If the spin is disconnected just randomize it
-#             current_state[flipping_spin] = rand([1, -1])
-#         end
-#
-#         for spin in keys(neighborhoods)
-#             addcounts!(neighbor_binning[spin], [[state[interacting] for (interacting, w) in neighborhoods[spin]]])
-#         end
-#         current_samples += 1
-#     end
-#     # returns array with counts in first column followed by states in rows
-#     return neighbor_binning
-# end

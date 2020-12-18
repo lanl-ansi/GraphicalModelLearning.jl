@@ -4,7 +4,7 @@ export FactorGraph, jsondata
 
 export ferromagnet_square_lattice, ferromagnet_3body_random, spinglass_3body_random
 
-export generate_neighborhoods, neighbor_array, find_term
+export generate_neighborhoods, find_term, localterms, neighborarray
 
 using StatsBase
 
@@ -422,4 +422,52 @@ function find_term(gm::FactorGraph{T}, term::Tuple{Int64,Int64}) where T <: Real
         end
     end
 
+end
+
+
+"""
+Creates an array for each spin containing the indices of its neighbors.
+This will be used in sampling to extract the relevant configurations
+in the neighborhood of each spin
+"""
+function neighborarray(gm::FactorGraph{T}) where T <: Real
+
+    neighbors = convert(Vector{Vector{Int64}}, [[] for spin in 1:gm.variable_count])
+    for (term_spins, w) in gm.terms
+        for spin in term_spins
+            for neighborspin in term_spins
+                if !any(neighbors[spin] .== neighborspin)
+                    push!(neighbors[spin], neighborspin)
+                end
+            end
+        end
+    end
+    for arr in neighbors
+        sort!(arr)
+    end
+    neighbors
+end
+
+"""
+Builds a version of neighborhoods where indices refer to the elements of
+neighbor array.  This way, after binning the spin products can be efficiently
+constructed.
+"""
+function localterms(gm::FactorGraph{T}, neighborarray::Array{Array{Int64,1},1}) where T <: Real
+
+    localterms = Dict{Int64, Array{Tuple{Array{Int64,1}, T}}}()
+    for spin in 1:gm.variable_count
+        localterms[spin] = []
+    end
+    for (term_spins, w) in gm.terms
+        for spin in term_spins
+            localarray = neighborarray[spin]
+            term = []
+            for neighborspin in term_spins
+                push!(term, findfirst(isequal(neighborspin), localarray))
+            end
+            push!(localterms[spin], (term, w))
+        end
+    end
+    localterms
 end

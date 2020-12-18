@@ -1,6 +1,8 @@
 module GraphicalModelLearning
 
-export learn, learn_structured, learn_higherorder_structured, inverse_ising, learn_old, learn_fields
+export learn, learn_structured, learn_higherorder_structured, learn_singlespincouplings
+
+export inverse_ising, learn_old, learn_fields
 
 export GMLFormulation, RISE, logRISE, RPLE, RISEA, multiRISE, ISE
 export GMLMethod, NLP, EntropicDescent
@@ -990,6 +992,111 @@ function learn_higherorder_structured(learned::FactorGraph{T1},
     end
 end
 
+"""
+Learn the couplings to a single site in the model learned
+"""
+function learn_singlespincouplings(learned::FactorGraph{T1},
+                                    reconstruction_spin::Int64,
+                                    samples::Dict{Vector{Int8}, Int64},
+                                    formulation::ISE,
+                                    method::EntropicDescent;
+                                    return_objectives=false) where T1 <: Real
+
+    max_steps = method.max_steps
+    η_init = method.init_stepsize
+    l1_bound = method.l1_bound
+    grad_termination = method.grad_termination
+
+    learned_neighbors = generate_neighborhoods(learned)[reconstruction_spin]
+
+    @info "Running Entropic descent: $max_steps steps, $l1_bound element bound"
+
+    reconstruction = Dict{Tuple, Float64}()
+    if return_objectives
+        objectives = Vector{Array{Float64}}(undef, num_spins)
+    end
+
+    num_learned_terms = length(learned_neighbors)
+
+    # contains spin products of every interaction, as keys in a dict
+    # with counts as values
+    nodal_stat_dict = Dict{Vector{Int64}, Int64}()
+    for (state_config, count) in samples
+        nodal_stat_dict[[prod(state_config[interacting]) for (interacting, w) in learned_neighbors]] = count
+    end
+    num_samples = sum(conf_count for (conf, conf_count) in nodal_stat_dict)
+
+    #Initialize
+    x_plus = [1/(2*num_learned_terms + 1) for i=1:num_learned_terms]
+    x_minus = [1/(2*num_learned_terms + 1) for i=1:num_learned_terms]
+    y = 1/(2*num_learned_terms + 1)
+    η = η_init
+
+    est = l1_bound .* (x_plus - x_minus)
+    obj = sum((conf_count/num_samples)*exp(-conf'*est) for (conf, conf_count) in nodal_stat_dict)
+    grad = ones(num_learned_terms)
+
+    best_est = est
+    best_obj = obj
+
+    # Track objective
+    if return_objectives
+        spin_objective = [best_obj]
+    end
+
+
+
+    t = 1
+    while t <= max_steps && maximum(abs.(grad)) > grad_termination
+
+        # gradient step
+        grad = [sum((conf_count/num_samples)*(-conf[i])*exp(-conf'*est) for (conf, conf_count) in nodal_stat_dict) for i=1:num_learned_terms]
+        grad_obj = grad ./ obj
+        w_plus = x_plus .* exp.(-η .* grad_obj)
+        w_minus = x_minus .* exp.(η .* grad_obj)
+
+        # projection step
+        z = y + sum(w_plus + w_minus)
+        x_plus = w_plus ./ z
+        x_minus = w_minus ./ z
+        y = y/z
+        η = η * sqrt(t/(t+1))
+
+        # track lowest objective and estimate
+        est .= l1_bound .* (x_plus - x_minus)
+        obj = sum((conf_count/num_samples)*exp(-conf'*est) for (conf, conf_count) in nodal_stat_dict)
+        if obj < best_obj
+            best_obj = obj
+            best_est .= est
+        end
+        # For debugging and plotting the objectives
+        if return_objectives
+            push!(spin_objective, obj)
+        end
+        t += 1
+    end
+
+    if t > max_steps
+        constraint_slack = l1_bound - sum(abs.(est))
+        @warn "Maximum steps reached max gradient=$(maximum(abs.(grad))), constraint slack = $constraint_slack "
+    end
+
+    # Single site estimates are first accumulated in a dictionary
+    site_reconstruction = Dict{Tuple, Float64}()
+    for (int_idx, (interacting, w)) in enumerate(learned_neighbors)
+        site_reconstruction[Tuple(sort(interacting))] = best_est[int_idx]
+    end
+
+    if return_objectives
+        objectives = spin_objective
+    end
+
+    if return_objectives
+        return FactorGraph(site_reconstruction), objectives
+    else
+        return FactorGraph(site_reconstruction)
+    end
+end
 
 """
 Takes advantage of an analytical solution to the fields, or one-body terms
