@@ -1022,9 +1022,13 @@ function learn_singlespincouplings(learned::FactorGraph{T1},
     # with counts as values
     nodal_stat_dict = Dict{Vector{Int64}, Int64}()
     for (state_config, count) in samples
-        nodal_stat_dict[[prod(state_config[interacting]) for (interacting, w) in learned_neighbors]] = count
+        try
+            nodal_stat_dict[[prod(state_config[interacting]) for (interacting, w) in learned_neighbors]] += count
+        catch KeyError
+            nodal_stat_dict[[prod(state_config[interacting]) for (interacting, w) in learned_neighbors]] = count
+        end
     end
-    num_samples = sum(conf_count for (conf, conf_count) in nodal_stat_dict)
+    num_samples = sum([conf_count for (conf, conf_count) in nodal_stat_dict])
 
     #Initialize
     x_plus = [1/(2*num_learned_terms + 1) for i=1:num_learned_terms]

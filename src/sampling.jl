@@ -398,8 +398,7 @@ function samplesubset(gm::FactorGraph{T},
     if gm.alphabet != :spin
         error("sampling is only supported for spin FactorGraphs. Given alphabet $(gm.alphabet)")
     end
-    println("Beginning Sampling for spins")
-    println(spin_list)
+
     neighborhoods = generate_neighborhoods(gm)
 
     state = gibbsMCsampler(gm, sampler.initial_steps, sampler.initial_state, replace=false)
@@ -407,28 +406,25 @@ function samplesubset(gm::FactorGraph{T},
     sample_binning = countmap([state[spin_list]])
     sampling_indices = shuffle(1:gm.variable_count)
 
-    println(state)
-    println(sample_binning)
+
     for sampleindex=1:num_samples-1
 
-        spindex = ((sampleindex-1) % gm.variable_count) + 1
-        flipping_spin = sampling_indices[spindex]
+        flipping_count = ((sampleindex-1) % gm.variable_count) + 1
+        flipping_spin = sampling_indices[flipping_count]
         # If we've iterated through all of them, shuffle again
-        if spindex == gm.variable_count
+        if flipping_count == gm.variable_count
             sampling_indices = shuffle(1:gm.variable_count)
         end
 
         try
-            glauber_step!(state, spindex, neighborhoods[spindex])
+            glauber_step!(state, flipping_spin, neighborhoods[flipping_spin])
         catch KeyError
             # If the spin is disconnected just randomize it
-            state[spindex] = rand([1, -1])
+            state[flipping_spin] = rand([1, -1])
         end
 
         addcounts!(sample_binning, [state[spin_list]])
 
-        println(state)
-        println(sample_binning)
     end
     sample_binning
 end
