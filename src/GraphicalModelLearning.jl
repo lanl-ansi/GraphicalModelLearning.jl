@@ -2,7 +2,7 @@ module GraphicalModelLearning
 
 export learn, learn_structured, learn_higherorder_structured, learn_singlespincouplings
 
-export inverse_ising, learn_old, learn_fields
+export inverse_ising, learn_old, learn_fields, learn_temperature
 
 export GMLFormulation, RISE, logRISE, RPLE, RISEA, multiRISE, ISE
 export GMLMethod, NLP, EntropicDescent
@@ -1144,6 +1144,101 @@ function learn_fields(model::FactorGraph{T1}, samples::Array{T2,2}, formulation:
 
     return FactorGraph(reconstruction)
 
+end
+
+
+"""
+Learn the couplings to a single site in the model learned
+"""
+function learn_temperature(sign_model::FactorGraph{T1},
+                           samples::Dict{Vector{Int8}, Int64},
+                           formulation::ISE,
+                           method::EntropicDescent;
+                           return_objectives=false) where T1 <: Real
+
+    max_steps = method.max_steps
+    η_init = method.init_stepsize
+    l1_bound = method.l1_bound
+    grad_termination = method.grad_termination
+
+    localsigns = [(collect(interacting), sign(s)) for (interacting, s) in sign_model]
+
+    @info "Running Entropic descent: $max_steps steps, $l1_bound element bound"
+
+    num_interactions = length(localsigns)
+
+    # contains spin products of every interaction, as keys in a dict
+    # with counts as values
+    nodal_stat_dict = Dict{Int64, Int64}()
+    for (state_config, count) in samples
+        try
+            nodal_stat_dict[sum(prod(state_config[interacting])*s for (interacting, s) in localsigns)] += count
+        catch KeyError
+            nodal_stat_dict[sum(prod(state_config[interacting])*s for (interacting, s) in localsigns)] = count
+        end
+    end
+    num_samples = sum(conf_count for (conf, conf_count) in nodal_stat_dict)
+
+    #Initialize
+    x_plus = 1/(2 + 1)
+    x_minus = 1/(2 + 1)
+    y = 1/(2 + 1)
+    η = η_init
+
+    est = l1_bound .* (x_plus - x_minus)
+    obj = sum((conf_count/num_samples)*exp(-conf*est) for (conf, conf_count) in nodal_stat_dict)
+    grad = 1.
+
+    best_est = est
+    best_obj = obj
+
+    # Track objective
+    if return_objectives
+        spin_objective = [best_obj]
+    end
+
+
+
+    t = 1
+    while t <= max_steps && abs(grad) > grad_termination
+
+        # gradient step
+        grad = sum((conf_count/num_samples)*(-conf)*exp(-conf*est) for (conf, conf_count) in nodal_stat_dict)
+        grad_obj = grad / obj
+        w_plus = x_plus * exp(-η * grad_obj)
+        w_minus = x_minus * exp(η * grad_obj)
+
+        # projection step
+        z = y + sum(w_plus + w_minus)
+        x_plus = w_plus / z
+        x_minus = w_minus / z
+        y = y/z
+        η = η * sqrt(t/(t+1))
+
+        # track lowest objective and estimate
+        est = l1_bound * (x_plus - x_minus)
+        obj = sum((conf_count/num_samples)*exp(-conf*est) for (conf, conf_count) in nodal_stat_dict)
+        if obj < best_obj
+            best_obj = obj
+            best_est = est
+        end
+        # For debugging and plotting the objectives
+        if return_objectives
+            push!(spin_objective, obj)
+        end
+        t += 1
+    end
+
+    if t > max_steps
+        constraint_slack = l1_bound - abs(est)
+        @warn "Maximum steps reached max gradient=$(abs(grad)), constraint slack = $constraint_slack "
+    end
+
+    if return_objectives
+        return best_est, spin_objectives
+    else
+        return best_est
+    end
 end
 
 end

@@ -391,9 +391,9 @@ function sample_neighborhood(gm::FactorGraph{T},
 end
 
 function samplesubset(gm::FactorGraph{T},
-                       spin_list::Vector{Int64},
-                       num_samples::Int64,
-                       sampler::Glauber) where T <: Real
+                      spin_list::Vector{Int64},
+                      num_samples::Int64,
+                      sampler::Glauber) where T <: Real
 
     if gm.alphabet != :spin
         error("sampling is only supported for spin FactorGraphs. Given alphabet $(gm.alphabet)")
