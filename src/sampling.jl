@@ -132,25 +132,26 @@ function sample(gm::FactorGraph{T},
                 sampler::Glauber;
                 replace::Bool = true,
                 sample_batch::Int64 = 10000,
-                condition::Function=true_condition) where T<: Real
+                condition::Function = true_condition,
+                return_finalstate::Bool = false) where T<: Real
     if gm.alphabet != :spin
         error("sampling is only supported for spin FactorGraphs. Given alphabet $(gm.alphabet)")
     end
-
-    equilibrated_state = gibbsMCsampler(gm, sampler.initial_steps, sampler.initial_state, replace=replace)
-    # Possibly problematic.  If we end up messing with conditions more then
-    # should fix so that condition is attached to the individual steps
-    while !condition(equilibrated_state)
-        equilibrated_state = gibbsMCsampler(gm, sampler.initial_steps, sampler.initial_state, replace=replace)
-    end
+    #
+    # equilibrated_state = gibbsMCsampler(gm, sampler.initial_steps, sampler.initial_state, replace=replace)
+    # # Possibly problematic.  If we end up messing with conditions more then
+    # # should fix so that condition is attached to the individual steps
+    # while !condition(equilibrated_state)
+    #     equilibrated_state = gibbsMCsampler(gm, sampler.initial_steps, sampler.initial_state, replace=replace)
+    # end
 
     # Initial Run
     batch_size = min(sample_batch, number_sample)
 
     if sampler.spacing_steps==1
-        raw_sample = sample_trajectory(gm, batch_size, equilibrated_state, replace=replace, condition=condition)
+        raw_sample = sample_trajectory(gm, batch_size, sampler.initial_state, replace=replace, condition=condition)
     else
-        raw_sample = sample_trajectory(gm, batch_size, sampler.spacing_steps, equilibrated_state, replace=replace, condition=condition)
+        raw_sample = sample_trajectory(gm, batch_size, sampler.spacing_steps, sampler.initial_state, replace=replace, condition=condition)
     end
 
     raw_binning = countmap(raw_sample[2:end])
@@ -170,8 +171,12 @@ function sample(gm::FactorGraph{T},
         raw_binning = addcounts!(raw_binning, raw_sample[2:end])
     end
     # returns array with counts in first column followed by states in rows
-    return vcat([vcat(count, state)' for (state, count) in raw_binning]...)
-
+    #return vcat([vcat(count, state)' for (state, count) in raw_binning]...)
+    if return_finalstate
+        return raw_binning, raw_sample[end]
+    else
+        return raw_binning
+    end
 end
 
 

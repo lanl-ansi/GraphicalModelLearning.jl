@@ -1229,13 +1229,14 @@ function learn_temperature(sign_model::FactorGraph{T1},
         t += 1
     end
 
+
     if t > max_steps
         constraint_slack = l1_bound - abs(est)
         @warn "Maximum steps reached max gradient=$(abs(grad)), constraint slack = $constraint_slack "
     end
 
     if return_objectives
-        return best_est, spin_objectives
+        return best_est, spin_objective
     else
         return best_est
     end
