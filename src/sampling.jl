@@ -446,7 +446,7 @@ end
 function samplesubset(gm::FactorGraph{T},
                       spin_list::Vector{Int64},
                       num_samples::Int64,
-                      sampler::Glauber,
+                      sampler::Glauber;
                       returnfinal::Bool = false) where T <: Real
 
     if gm.alphabet != :spin
