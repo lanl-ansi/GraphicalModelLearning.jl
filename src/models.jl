@@ -2,7 +2,7 @@
 
 export FactorGraph, jsondata
 
-export ferromagnet_square_lattice, ferromagnet_3body_random, spinglass_3body_random
+export ferromagnet_square_lattice, ferromagnet_nbodypoisson, spinglass_nbodypoisson
 
 export generate_neighborhoods, find_term, localterms, neighborarray
 
@@ -327,40 +327,30 @@ function fullyfrustrated_ising(L::Int, beta::Float64)
     FactorGraph(terms)
 end
 
-function ferromagnet_3body_random(num_sites::Int64, num_terms::Int64, beta::Float64)
+function ferromagnet_nbodypoisson(nbody::Int64, numsites::Int64, numterms::Int64, β::Float64)
     terms = Dict{Tuple, Float64}()
-    all_possible_terms = []
-    for site1 = 1:num_sites-2
-        for site2 = site1+1:num_sites-1
-            for site3 = site2+1:num_sites
-                push!(all_possible_terms, (site1, site2, site3))
-            end
+    currentterms = 0
+    while currentterms < numterms
+        potentialterm = Tuple(sort(rand(1:numsites, (nbody,))))
+        if allunique(potentialterm) && !haskey(terms, potentialterm)
+            terms[potentialterm] = β
+            currentterms += 1
         end
     end
-    terms_sample = StatsBase.sample(all_possible_terms, num_terms, replace=false)
-    for (site1, site2, site3) in terms_sample
-        terms[(site1, site2, site3)] = beta
-    end
     FactorGraph(terms)
-
 end
 
-function spinglass_3body_random(num_sites::Int64, num_terms::Int64, beta::Float64)
+function spinglass_nbodypoisson(nbody::Int64, numsites::Int64, numterms::Int64, β::Float64)
     terms = Dict{Tuple, Float64}()
-    all_possible_terms = []
-    for site1 = 1:num_sites-2
-        for site2 = site1+1:num_sites-1
-            for site3 = site2+1:num_sites
-                push!(all_possible_terms, (site1, site2, site3))
-            end
+    currentterms = 0
+    while currentterms < numterms
+        potentialterm = Tuple(sort(rand(1:numsites, (nbody,))))
+        if allunique(potentialterm) && !haskey(terms, potentialterm)
+            terms[potentialterm] = rand([β, -β])
+            currentterms += 1
         end
     end
-    terms_sample = StatsBase.sample(all_possible_terms, num_terms, replace=false)
-    for (site1, site2, site3) in terms_sample
-        terms[(site1, site2, site3)] = rand([beta, -beta])
-    end
     FactorGraph(terms)
-
 end
 
 """

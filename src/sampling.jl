@@ -1,8 +1,8 @@
-export sample, sample_neighborhoods, samplesubset, samplesubset2
+export sample, sample_neighborhoods, samplesubset, samplearray
 
 export GMSampler, Gibbs, Glauber
 
-export gibbsMCsampler, glauber_step, glauber_step!
+export gibbsMCsampler, glauber_step, glauber_step!, glauberstep_contribchange!
 
 using StatsBase
 using Random: shuffle
@@ -39,6 +39,13 @@ function weigh_proba(int_representation::Int, adj::Array{T,2}, prior::Array{T,1}
     return exp((0.5 * spins' * adj * spins + prior' * spins)[1])
 end
 
+"""
+Converts a sample dictionary conf -> counts to a sample array where rows contain
+key value pairs as [count, conf]
+"""
+function samplearray(sampledict::Dict{Vector{Int8}, Int64})
+    vcat([vcat(count, conf)' for (conf, count) in sampledict]...)
+end
 
 # assumes second order
 function sample_generation_ising(gm::FactorGraph{T}, samples_per_bin::Integer, bins::Int) where T <: Real
@@ -142,7 +149,6 @@ function glauber_step!(state::Array{Int8, 1},
     if rand() < (1 / (weight_noflip^2 + 1))
         state[spin] = -state[spin]
     end
-
 end
 
 function glauber_step(state::Array{Int8, 1},
@@ -165,6 +171,24 @@ function glauber_step(state::Array{Int8, 1},
     # new_state[spin] = new_spin_state
 
     return new_state
+end
+
+function glauberstep_contribchange!(state::Array{Int8, 1},
+                     spin::Int64,
+                     neighborhood::Array{Tuple{Array{Int64, 1}, Float64}, 1})
+
+    site_contrib = 0.
+    for (term_spins, w) in neighborhood
+        site_contrib += prod(state[term_spins])*w
+    end
+
+    weight_noflip = exp(site_contrib)
+    # state[spin] = StatsBase.sample([state[spin], -state[spin]], StatsBase.Weights([weight_noflip, 1/weight_noflip]))
+    if rand() < (1 / (weight_noflip^2 + 1))
+        state[spin] = -state[spin]
+        return -2*site_contrib
+    end
+    return 0
 end
 
 function gibbsMCsampler(gm::FactorGraph{T},
@@ -332,7 +356,7 @@ function sample(gm::FactorGraph{T},
             state[flipping_spin] = rand([1, -1])
         end
 
-        addcounts!(sample_binning, [state])
+        addcounts!(sample_binning, [deepcopy(state)])
 
     end
 
@@ -343,8 +367,9 @@ function sample(gm::FactorGraph{T},
     end
 end
 
-function sample2(gm::FactorGraph{T},
+function sample(gm::FactorGraph{T},
                  numsamples::Int64,
+                 samplesteps::Int64,
                  sampler::Glauber;
                  replace::Bool=true,
                  returnfinal::Bool = false) where T <: Real
@@ -358,30 +383,12 @@ function sample2(gm::FactorGraph{T},
     state = deepcopy(sampler.initialstate)
     sample_binning = countmap([state])
 
-    if !replace
-        sampling_indices = shuffle(1:gm.variable_count)
-    end
+
 
 
     for sampleindex=1:numsamples-1
 
-        if replace
-            flipping_spin = rand(1:gm.variable_count)
-        else
-            flipping_count = ((sampleindex-1) % gm.variable_count) + 1
-            flipping_spin = sampling_indices[flipping_count]
-            # If we've iterated through all of them, shuffle again
-            if flipping_count == gm.variable_count
-                sampling_indices = shuffle(1:gm.variable_count)
-            end
-        end
-
-        try
-            glauber_step!(state, flipping_spin, neighborhoods[flipping_spin])
-        catch KeyError
-            # If the spin is disconnected just randomize it
-            state[flipping_spin] = rand([1, -1])
-        end
+        state = gibbsMCsampler(gm, samplesteps, state; neighborhoods=neighborhoods, replace = replace)
 
         addcounts!(sample_binning, [state])
 
@@ -393,6 +400,8 @@ function sample2(gm::FactorGraph{T},
         return sample_binning
     end
 end
+
+
 
 function sample_neighborhoods(gm::FactorGraph{T},
                             neighbors::Vector{Vector{Int64}},
@@ -432,7 +441,7 @@ function sample_neighborhoods(gm::FactorGraph{T},
         current_samples += batch_size
 
         for spin in keys(neighborhoods)
-            addcounts!(neighbor_binning[spin], [state[neighbors[spin]] for state in raw_sample[2:end]])
+            addcounts!(neighbor_binning[spin], [copy(state[neighbors[spin]]) for state in raw_sample[2:end]])
         end
     end
 
@@ -476,7 +485,7 @@ function samplesubset(gm::FactorGraph{T},
             state[flipping_spin] = rand([1, -1])
         end
 
-        addcounts!(sample_binning, [state[spin_list]])
+        addcounts!(sample_binning, [deepcopy(state[spin_list])])
 
     end
     if returnfinal
