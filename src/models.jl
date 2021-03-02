@@ -2,7 +2,9 @@
 
 export FactorGraph, jsondata
 
-export ferromagnet_square_lattice, ferromagnet_nbodypoisson, spinglass_nbodypoisson
+export completegraph, curieweiss, cubiclattice, edwardsanderson_spinglass
+
+export ferromagnet_nbodypoisson, spinglass_nbodypoisson
 
 export generate_neighborhoods, find_term, localterms, neighborarray
 
@@ -272,81 +274,89 @@ function permutations(partial_perm::Array{Any,1}, items, order::Int, asymmetric:
     end
 end
 
-function ferromagnet_square_lattice(L::Int, beta::Float64)
+function completegraph(numsites::Int; J=1.::Float64)
+    terms = Dict{Tuple, Float64}()
+
+    for site1 in 1:(numsites-1)
+        for site2 in (site1+1):numsites
+            terms[(site1, site2)] = J
+        end
+    end
+    FactorGraph(terms)
+end
+
+function curieweiss(N::Int, J::Float64, h::Float64)
+    model = completegraph(N; J=J)
+
+    for site in 1:N
+        model.terms[(site,)] = h
+    end
+    return model
+end
+
+function sherringtonkirkpatrick(N::Int, J::Float64, h::Float64)
+    model = completegraph(N)
+
+    for (interacting, weight) in model.terms
+        model.terms[interacting] = J/sqrt(N)*randn()
+    end
+    return model
+end
+
+function cubiclattice(L::Int, dim::Int; J=1.::Float64, periodic=true::Bool)
     terms = Dict{Tuple, Float64}()
     # Index terms from top left going down columns
     # with periodic boundaries connections in
-    for row in 1:L
-        for col in 1:L
-            site = L*(col-1) + row
+    for site in 1:L^dim
+        for d in 1:dim
+            d_idx = fld((site-1) % L^d, L^(d-1)) + 1
 
-            if row < L
-                terms[(site, site+1)] = beta
-            else
-                terms[(site, site-L+1)] = beta
+            if d_idx < L
+                terms[(site, site + L^(d-1))] = J
+            elseif periodic
+                terms[(site, site - L^(d-1)*(L-1))] = J
             end
-            if col < L
-                terms[(site, site+L)] = beta
-            elseif row < L
-                terms[(site, site % L)] = beta
-            else
-                terms[(site, L)] = beta
-            end
+
         end
     end
+
     FactorGraph(terms)
 end
 
-function fullyfrustrated_ising(L::Int, beta::Float64)
-    @assert L % 2 == 0
-    terms = Dict{Tuple, Float64}()
-    # Index terms from top left going down columns
-    # with periodic boundaries connections
-    for col in 1:L
-        for row in 1:L
-            site = L*(col-1) + row
-            if col % 2 == 0
-                col_J = -beta
-            else
-                col_J = beta
-            end
-            if row < L
-                terms[(site, site+1)] = col_J
-            else
-                terms[(site, site-L+1)] = col_J
-            end
-            if col < L
-                terms[(site, site+L)] = beta
-            elseif row < L
-                terms[(site, site % L)] = beta
-            else
-                terms[(site, L)] = beta
-            end
+
+function edwardsanderson_spinglass(L::Int, dim::Int, couplings::Symbol; J=1.::Float64, periodic=true::Bool)
+    model = cubiclattice(L, dim; J=1., periodic=periodic)
+
+    for (interacting, weight) in model.terms
+        if couplings == :pm
+            model.terms[interacting] = rand([-1., 1.])
+        elseif couplings == :gaussian
+            model.terms[interacting] = J*randn()
         end
     end
-    FactorGraph(terms)
+    return model
 end
 
-function ferromagnet_nbodypoisson(nbody::Int64, numsites::Int64, numterms::Int64, β::Float64)
+function ferromagnet_nbodypoisson(nbody::Int64, numsites::Int64, numterms::Int64, J::Float64)
     terms = Dict{Tuple, Float64}()
     currentterms = 0
     while currentterms < numterms
         potentialterm = Tuple(sort(rand(1:numsites, (nbody,))))
         if allunique(potentialterm) && !haskey(terms, potentialterm)
-            terms[potentialterm] = β
+            terms[potentialterm] = J
             currentterms += 1
         end
     end
     FactorGraph(terms)
 end
 
-function spinglass_nbodypoisson(nbody::Int64, numsites::Int64, numterms::Int64, β::Float64)
+function spinglass_nbodypoisson(nbody::Int64, numsites::Int64, numterms::Int64, J::Float64)
     terms = Dict{Tuple, Float64}()
     currentterms = 0
     while currentterms < numterms
         potentialterm = Tuple(sort(rand(1:numsites, (nbody,))))
         if allunique(potentialterm) && !haskey(terms, potentialterm)
-            terms[potentialterm] = rand([β, -β])
+            terms[potentialterm] = rand([J, -J])
             currentterms += 1
         end
     end
