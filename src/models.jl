@@ -285,8 +285,8 @@ function completegraph(numsites::Int; J=1.::Float64)
     FactorGraph(terms)
 end
 
-function curieweiss(N::Int, J::Float64, h::Float64)
-    model = completegraph(N; J=J)
+function curieweiss(N::Int, J_N::Float64, h::Float64)
+    model = completegraph(N; J=J_N)
 
     for site in 1:N
         model.terms[(site,)] = h
