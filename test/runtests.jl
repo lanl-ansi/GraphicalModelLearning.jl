@@ -8,7 +8,7 @@ using Random
 import DelimitedFiles: readdlm
 import LinearAlgebra: diag
 
-const SOLVER = with_optimizer(Ipopt.Optimizer, print_level=0)
+const SOLVER = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)
 
 include("common.jl")
 
@@ -180,7 +180,7 @@ end
         for (key, value) in gm_tmp
             #println(learned_gm2[key], " ", value)
             # this is a bug, the learned_gm2 value should not be twice as large
-            @test isapprox(learned_gm2[key]/2.0, value, atol = 0.15)
+            @test isapprox(learned_gm2[key]/2.0, value, atol = 0.16)
         end
 
     end
