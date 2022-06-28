@@ -1,9 +1,11 @@
 # GraphicalModelLearning.jl
 
 Dev:
-[![Build Status](https://travis-ci.org/lanl-ansi/GraphicalModelLearning.jl.svg?branch=master)](https://travis-ci.org/lanl-ansi/GraphicalModelLearning.jl)
+[![CI](https://github.com/lanl-ansi/GraphicalModelLearning.jl/workflows/CI/badge.svg)](https://github.com/lanl-ansi/GraphicalModelLearning.jl/actions?query=workflow%3ACI)
 [![codecov](https://codecov.io/gh/lanl-ansi/GraphicalModelLearning.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/lanl-ansi/GraphicalModelLearning.jl)
-[![](https://img.shields.io/badge/docs-latest-blue.svg)](https://lanl-ansi.github.io/GraphicalModelLearning.jl/latest)
+[![Documentation](https://github.com/lanl-ansi/GraphicalModelLearning.jl/workflows/Documentation/badge.svg)](https://lanl-ansi.github.io/GraphicalModelLearning.jl/stable/)
+
+
 
 Algorithms for Learning Graphical Models
 
