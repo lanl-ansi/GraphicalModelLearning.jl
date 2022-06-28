@@ -2,8 +2,11 @@ GraphicalModelLearning.jl Change Log
 ====================================
 
 ### Staged
-- Update CI to Github workflows
+- nothing
+
+### v0.2.2
 - Update tests for Julia v1.7, JuMP v1, Ipopt v1, StatsBase v0.33
+- Update CI to Github workflows
 
 ### v0.2.1
 - Maintenance updates, Julia v1.3, JuMP v0.21, Ipopt v0.6
