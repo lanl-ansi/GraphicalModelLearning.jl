@@ -29,24 +29,26 @@ include("common.jl")
     end
 end
 
-
-@testset "gibbs sampler" begin
-    for (name, gm) in gms
-        gm_tmp = deepcopy(gm)
-        gm_tmp.order = 3
-        Random.seed!(0) # fix random number generator
-        samples = sample(gm_tmp, gibbs_test_samples)
-        base_samples = readdlm("data/$(name)_samples.csv", ',', Int)
-        @test isapprox(samples, base_samples)
+# work around for change in default random number generator in v1.7
+if VERSION >= v"1.7"
+    @testset "gibbs sampler" begin
+        for (name, gm) in gms
+            gm_tmp = deepcopy(gm)
+            gm_tmp.order = 3
+            Random.seed!(0) # fix random number generator
+            samples = sample(gm_tmp, gibbs_test_samples)
+            base_samples = readdlm("data/$(name)_samples.csv", ',', Int)
+            @test isapprox(samples, base_samples)
+        end
     end
-end
 
-@testset "gibbs sampler, 2nd order" begin
-    for (name, gm) in gms
-        Random.seed!(0) # fix random number generator
-        samples = sample(gm, gibbs_test_samples)
-        base_samples = readdlm("data/$(name)_samples.csv", ',', Int)
-        @test isapprox(samples, base_samples)
+    @testset "gibbs sampler, 2nd order" begin
+        for (name, gm) in gms
+            Random.seed!(0) # fix random number generator
+            samples = sample(gm, gibbs_test_samples)
+            base_samples = readdlm("data/$(name)_samples.csv", ',', Int)
+            @test isapprox(samples, base_samples)
+        end
     end
 end
 
