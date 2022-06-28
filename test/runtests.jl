@@ -36,8 +36,7 @@ end
         gm_tmp.order = 3
         Random.seed!(0) # fix random number generator
         samples = sample(gm_tmp, gibbs_test_samples)
-        #base_samples = readdlm("data/$(name)_samples.csv", ',', Int64)
-        base_samples = readdlm("data/$(name)_samples.csv", ',')
+        base_samples = readdlm("data/$(name)_samples.csv", ',', Int)
         @test isapprox(samples, base_samples)
     end
 end
@@ -46,11 +45,7 @@ end
     for (name, gm) in gms
         Random.seed!(0) # fix random number generator
         samples = sample(gm, gibbs_test_samples)
-        base_samples = readdlm("data/$(name)_samples.csv", ',')
-        #println(name)
-        #println(base_samples)
-        #println(samples)
-        #println(abs.(base_samples-samples))
+        base_samples = readdlm("data/$(name)_samples.csv", ',', Int)
         @test isapprox(samples, base_samples)
     end
 end
