@@ -2,31 +2,39 @@
 
 export FactorGraph, jsondata
 
+export completegraph, curieweiss, cubiclattice, edwardsanderson_spinglass
+
+export ferromagnet_nbodypoisson, spinglass_nbodypoisson
+
+export generate_neighborhoods, find_term, localterms, neighborarray
+
+using StatsBase
+
 alphabets = [:spin, :boolean, :integer, :integer_pos, :real, :real_pos]
 
 
 mutable struct FactorGraph{T <: Real}
     order::Int
-    varible_count::Int
+    variable_count::Int
     alphabet::Symbol
     terms::Dict{Tuple,T} # TODO, would be nice to have a stronger tuple type here
     variable_names::Union{Vector{String}, Nothing}
     #FactorGraph(a,b,c,d,e) = check_model_data(a,b,c,d,e) ? new(a,b,c,d,e) : error("generic init problem")
 end
 
-FactorGraph(order::Int, varible_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}) where T <: Real = FactorGraph{T}(order, varible_count, alphabet, terms, nothing)
+FactorGraph(order::Int, variable_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}) where T <: Real = FactorGraph{T}(order, variable_count, alphabet, terms, nothing)
 FactorGraph(matrix::Array{T,2}) where T <: Real = convert(FactorGraph{T}, matrix)
 FactorGraph(dict::Dict{Tuple,T}) where T <: Real = convert(FactorGraph{T}, dict)
 FactorGraph(list::Array{Any,1}) = convert(FactorGraph, list)
 
 
-function check_model_data(order::Int, varible_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}, variable_names::Union{Vector{String}, Nothing}) where T <: Real
+function check_model_data(order::Int, variable_count::Int, alphabet::Symbol, terms::Dict{Tuple,T}, variable_names::Union{Vector{String}, Nothing}) where T <: Real
     if !in(alphabet, alphabets)
         error("alphabet $(alphabet) is not supported")
         return false
     end
-    if variable_names != nothing && length(variable_names) != varible_count
-        error("expected $(varible_count) but only given $(length(variable_names))")
+    if variable_names != nothing && length(variable_names) != variable_count
+        error("expected $(variable_count) but only given $(length(variable_names))")
         return false
     end
     for (k,v) in terms
@@ -36,11 +44,11 @@ function check_model_data(order::Int, varible_count::Int, alphabet::Symbol, term
         end
         for (i,index) in enumerate(k)
             #println(i," ",index)
-            if index < 1 || index > varible_count
-                error("a term has an index of $(index) but it should be in the range of 1:$(varible_count)")
+            if index < 1 || index > variable_count
+                error("a term has an index of $(index) but it should be in the range of 1:$(variable_count)")
                 return false
             end
-            #= 
+            #=
             # TODO see when this should be enforced
             if i > 1
                 if k[i-1] > index
@@ -55,7 +63,7 @@ end
 
 function Base.show(io::IO, gm::FactorGraph)
     println(io, "alphabet: ", gm.alphabet)
-    println(io, "vars: ", gm.varible_count)
+    println(io, "vars: ", gm.variable_count)
     if gm.variable_names != nothing
         println(io, "variable names: ")
         println(io, "  ", get(gm.variable_names))
@@ -86,7 +94,7 @@ Base.keys(gm::FactorGraph) = keys(gm.terms)
 
 function diag_keys(gm::FactorGraph)
     dkeys = Tuple[]
-    for i in 1:gm.varible_count
+    for i in 1:gm.variable_count
         key = diag_key(gm, i)
         if key in keys(gm.terms)
             push!(dkeys, key)
@@ -97,7 +105,7 @@ end
 
 diag_key(gm::FactorGraph, i::Int) = tuple(fill(i, gm.order)...)
 
-#Base.diag(gm::FactorGraph{T}) where T <: Real = [ get(gm.terms, diag_key(gm, i), zero(T)) for i in 1:gm.varible_count ]
+#Base.diag(gm::FactorGraph{T}) where T <: Real = [ get(gm.terms, diag_key(gm, i), zero(T)) for i in 1:gm.variable_count ]
 
 #Base.DataFmt.writecsv(io, gm::FactorGraph{T}, args...; kwargs...) where T <: Real = writecsv(io, convert(Array{T,2}, gm), args...; kwargs...)
 
@@ -107,18 +115,18 @@ function Base.convert(::Type{FactorGraph{T}}, m::Array{T,2}) where T <: Real
 
     @info "assuming spin alphabet"
     alphabet = :spin
-    varible_count = size(m,1)
+    variable_count = size(m,1)
 
     terms = Dict{Tuple,T}()
 
-    for key in permutations(1:varible_count, 1)
+    for key in permutations(1:variable_count, 1)
         weight = m[key..., key...]
         if !isapprox(weight, 0.0)
             terms[key] = weight
         end
     end
 
-    for key in permutations(1:varible_count, 2)
+    for key in permutations(1:variable_count, 2)
         weight = m[key...]
         if !isapprox(weight, 0.0)
             terms[key] = weight
@@ -130,8 +138,7 @@ function Base.convert(::Type{FactorGraph{T}}, m::Array{T,2}) where T <: Real
             warn("values at $(key) and $(rev) differ by $(delta), only $(key) will be used")
         end
     end
-
-    return FactorGraph(2, varible_count, alphabet, terms)
+    return FactorGraph(2, variable_count, alphabet, terms)
 end
 
 function Base.convert(::Type{Array{T,2}}, gm::FactorGraph{T}) where T <: Real
@@ -139,7 +146,7 @@ function Base.convert(::Type{Array{T,2}}, gm::FactorGraph{T}) where T <: Real
         error("cannot convert a FactorGraph of order $(gm.order) to a matrix")
     end
 
-    matrix = zeros(gm.varible_count, gm.varible_count)
+    matrix = zeros(gm.variable_count, gm.variable_count)
     for (k,v) in gm
         if length(k) == 1
             matrix[k..., k...] = v
@@ -153,23 +160,45 @@ function Base.convert(::Type{Array{T,2}}, gm::FactorGraph{T}) where T <: Real
     return matrix
 end
 
+function Base.convert(::Type{Array{T,3}}, gm::FactorGraph{T}) where T <: Real
+    if gm.order != 3
+        error("cannot convert a FactorGraph of order $(gm.order) to a matrix")
+    end
+
+    matrix = zeros(gm.variable_count, gm.variable_count, gm.variable_count)
+    for (k,v) in gm
+        if length(k) == 1 || length(k) == 2
+            error("Does not support 1 or 2 body interactions")
+        else
+            a, b, c = k
+            matrix[a, b, c] = v
+            matrix[a, c, b] = v
+            matrix[b, a, c] = v
+            matrix[b, c, a] = v
+            matrix[c, a, b] = v
+            matrix[c, b, a] = v
+        end
+    end
+
+    return matrix
+end
 
 Base.convert(::Type{Dict}, m::Array{T,2}) where T <: Real = convert(Dict{Tuple,T}, m)
 function Base.convert(::Type{Dict{Tuple,T}}, m::Array{T,2}) where T <: Real
     @assert size(m,1) == size(m,2) #check matrix is square
 
-    varible_count = size(m,1)
+    variable_count = size(m,1)
 
     terms = Dict{Tuple,T}()
 
-    for key in permutations(1:varible_count, 1)
+    for key in permutations(1:variable_count, 1)
         weight = m[key..., key...]
         if !isapprox(weight, 0.0)
             terms[key] = weight
         end
     end
 
-    for key in permutations(1:varible_count, 2, asymmetric=true)
+    for key in permutations(1:variable_count, 2, asymmetric=true)
         if key[1] != key[2]
             weight = m[key...]
             if !isapprox(weight, 0.0)
@@ -200,7 +229,7 @@ function Base.convert(::Type{FactorGraph}, list::Array{Any,1})
         max_variable = max(max_variable, maximum(term))
     end
 
-    @info "dectected $(max_variable) variables with order $(max_order)"
+    @info "detected $(max_variable) variables with order $(max_order)"
 
     return FactorGraph(max_order, max_variable, alphabet, terms)
 end
@@ -219,7 +248,7 @@ function Base.convert(::Type{FactorGraph{T}}, dict::Dict{Tuple,T}) where T <: Re
         max_variable = max(max_variable, maximum(term))
     end
 
-    @info "dectected $(max_variable) variables with order $(max_order)"
+    @info "detected $(max_variable) variables with order $(max_order)"
 
     return FactorGraph(max_order, max_variable, alphabet, dict)
 end
@@ -243,4 +272,202 @@ function permutations(partial_perm::Array{Any,1}, items, order::Int, asymmetric:
         end
         return perms
     end
+end
+
+function completegraph(numsites::Int; J=1.::Float64)
+    terms = Dict{Tuple, Float64}()
+
+    for site1 in 1:(numsites-1)
+        for site2 in (site1+1):numsites
+            terms[(site1, site2)] = J
+        end
+    end
+    FactorGraph(terms)
+end
+
+function curieweiss(N::Int, J_N::Float64, h::Float64)
+    model = completegraph(N; J=J_N)
+
+    for site in 1:N
+        model.terms[(site,)] = h
+    end
+    return model
+end
+
+function sherringtonkirkpatrick(N::Int, J::Float64, h::Float64)
+    model = completegraph(N)
+
+    for (interacting, weight) in model.terms
+        model.terms[interacting] = J/sqrt(N)*randn()
+    end
+    return model
+end
+
+function cubiclattice(L::Int, dim::Int; J=1.::Float64, periodic=true::Bool)
+    terms = Dict{Tuple, Float64}()
+    # Index terms from top left going down columns
+    # with periodic boundaries connections in
+    for site in 1:L^dim
+        for d in 1:dim
+            d_idx = fld((site-1) % L^d, L^(d-1)) + 1
+
+            if d_idx < L
+                terms[(site, site + L^(d-1))] = J
+            elseif periodic
+                terms[(site, site - L^(d-1)*(L-1))] = J
+            end
+
+        end
+    end
+
+    FactorGraph(terms)
+end
+
+
+function edwardsanderson_spinglass(L::Int, dim::Int, couplings::Symbol; J=1.::Float64, periodic=true::Bool)
+    model = cubiclattice(L, dim; J=1., periodic=periodic)
+
+    for (interacting, weight) in model.terms
+        if couplings == :pm
+            model.terms[interacting] = rand([-1., 1.])
+        elseif couplings == :gaussian
+            model.terms[interacting] = J*randn()
+        end
+    end
+    return model
+end
+
+function ferromagnet_nbodypoisson(nbody::Int64, numsites::Int64, numterms::Int64, J::Float64)
+    terms = Dict{Tuple, Float64}()
+    currentterms = 0
+    while currentterms < numterms
+        potentialterm = Tuple(sort(rand(1:numsites, (nbody,))))
+        if allunique(potentialterm) && !haskey(terms, potentialterm)
+            terms[potentialterm] = J
+            currentterms += 1
+        end
+    end
+    FactorGraph(terms)
+end
+
+function spinglass_nbodypoisson(nbody::Int64, numsites::Int64, numterms::Int64, J::Float64)
+    terms = Dict{Tuple, Float64}()
+    currentterms = 0
+    while currentterms < numterms
+        potentialterm = Tuple(sort(rand(1:numsites, (nbody,))))
+        if allunique(potentialterm) && !haskey(terms, potentialterm)
+            terms[potentialterm] = rand([J, -J])
+            currentterms += 1
+        end
+    end
+    FactorGraph(terms)
+end
+
+"""
+Generates a dictionary containing the neighboring terms
+of a site.  neighbors[i] returns an array where each entry
+corresponds to a term in the factor graph as ([sites], weight)
+The contribution of this term to the 'energy' can be calculated as
+weight*product(state[[sites]]).  Note that value assigned to key i
+also contains i so that the energy contribution can be
+calculated directly.
+"""
+function generate_neighborhoods(gm::FactorGraph{T}) where T <: Real
+    neighborhoods = Dict{Int64, Array{Tuple{Array{Int64,1}, T}}}()
+
+    for (interacting, weight) in gm.terms
+        for site in interacting
+            if !haskey(neighborhoods, site)
+                neighborhoods[site] = []
+            end
+
+            push!(neighborhoods[site], ([interacting...], weight))
+        end
+    end
+    return neighborhoods
+end
+
+
+"""
+For models with 2-body interactions, this returns an array neighbors
+such that neighbors[i] returns an array of site indices that interact
+with site i.  If the model includes 1-body a one body field at site i,
+neighbors[i] contains i.
+"""
+function neighbor_array(gm::FactorGraph{T}) where T <: Real
+    @assert gm.order == 2
+
+    neighbors = [[] for site in 1:gm.variable_count]
+    for (sites, weight) in gm.terms
+        if length(sites) == 2
+            push!(neighbors[sites[1]], sites[2])
+            push!(neighbors[sites[2]], sites[1])
+        elseif length(sites) == 1
+            push!(neighbors[sites[1]], sites[1])
+        end
+    end
+    [sort(l) for l in neighbors]
+end
+
+function find_term(gm::FactorGraph{T}, term::Tuple{Int64,Int64}) where T <: Real
+
+    (i, j) = term
+    if i == j
+        return gm.terms[(i,)]
+    else
+        try
+            return gm.terms[(i, j)]
+        catch KeyError
+            return gm.terms[(j, i)]
+        end
+    end
+
+end
+
+
+"""
+Creates an array for each spin containing the indices of its neighbors.
+This will be used in sampling to extract the relevant configurations
+in the neighborhood of each spin
+"""
+function neighborarray(gm::FactorGraph{T}) where T <: Real
+
+    neighbors = convert(Vector{Vector{Int64}}, [[] for spin in 1:gm.variable_count])
+    for (term_spins, w) in gm.terms
+        for spin in term_spins
+            for neighborspin in term_spins
+                if !any(neighbors[spin] .== neighborspin)
+                    push!(neighbors[spin], neighborspin)
+                end
+            end
+        end
+    end
+    for arr in neighbors
+        sort!(arr)
+    end
+    neighbors
+end
+
+"""
+Builds a version of neighborhoods where indices refer to the elements of
+neighbor array.  This way, after binning the spin products can be efficiently
+constructed.
+"""
+function localterms(gm::FactorGraph{T}, neighborarray::Array{Array{Int64,1},1}) where T <: Real
+
+    localterms = Dict{Int64, Array{Tuple{Array{Int64,1}, T}}}()
+    for spin in 1:gm.variable_count
+        localterms[spin] = []
+    end
+    for (term_spins, w) in gm.terms
+        for spin in term_spins
+            localarray = neighborarray[spin]
+            term = []
+            for neighborspin in term_spins
+                push!(term, findfirst(isequal(neighborspin), localarray))
+            end
+            push!(localterms[spin], (term, w))
+        end
+    end
+    localterms
 end
