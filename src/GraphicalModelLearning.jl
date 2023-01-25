@@ -69,7 +69,7 @@ mutable struct NLP <: GMLMethod
     solver::Any
 end
 # default values
-NLP() = NLP(optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0))
+NLP() = NLP(optimizer_with_attributes(Ipopt.Optimizer, "print_level"=>0))
 
 mutable struct EntropicDescent <: GMLMethod
     max_steps::Int64
